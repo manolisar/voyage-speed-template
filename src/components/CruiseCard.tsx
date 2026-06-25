@@ -36,8 +36,8 @@ export function CruiseCard({ voyage, shipCode }: { voyage: Voyage | undefined; s
           className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.65rem] font-bold tracking-[0.5px]"
           style={
             voyage.ended
-              ? { background: 'rgba(107,123,143,0.15)', color: '#6B7B8F' }
-              : { background: 'rgba(16,185,129,0.15)', color: '#059669' }
+              ? { background: 'rgba(107,123,143,0.18)', color: 'var(--color-muted)' }
+              : { background: 'rgba(16,185,129,0.18)', color: '#10b981' }
           }
         >
           {voyage.ended ? 'Ended' : 'Active'}

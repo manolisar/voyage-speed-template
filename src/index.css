@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Enable class-based dark mode (`.dark` on <html>). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ── Voyage Speed Tracker theme (CSS-first Tailwind v4) ──────────────────
    Palette + fonts lifted verbatim from the Claude Design artifact so the
    rebuild is visually 1:1. Tokens here become Tailwind utilities, e.g.
@@ -13,7 +16,8 @@
   --color-rail: #f3f5f9;
   --color-ink: #1a2233;
   --color-muted: #6b7b8f;
-  --color-faint: #b0bac6;
+  /* faint darkened from #b0bac6 (~1.9:1, failed WCAG AA) to ~4.6:1 on white */
+  --color-faint: #6b7689;
   --color-line: #e5e9f0;
 
   --color-cyan: #06b6d4;
@@ -37,6 +41,20 @@
   --color-spd-ok-bg: #ecfdf5;
 }
 
+/* ── Dark theme — redefine the structural tokens so every token-based
+   utility (bg-surface, text-ink, border-line, …) flips automatically.
+   A deep-navy "bridge at night" palette; the saturated accent colours
+   (cyan, speed bands, the per-metric band hues) read on both. */
+:root.dark {
+  --color-bg: #0b1622;
+  --color-surface: #10202f;
+  --color-rail: #16283a;
+  --color-ink: #e6eef7;
+  --color-muted: #9db0c4;
+  --color-faint: #6e8499;
+  --color-line: #22384c;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -58,6 +76,62 @@ input,
 textarea,
 button {
   font-family: inherit;
+}
+button {
+  touch-action: manipulation;
+}
+
+/* Keyboard focus ring for every interactive element (zero-specificity :where
+   so component classes can still override). Visible only for keyboard users. */
+:where(button, a, input, textarea, select, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reset native button chrome so a semantic <button> can render like the plain
+   div/span it replaced (keyboard + a11y for free, identical visuals). */
+.vt-unbutton {
+  appearance: none;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+/* Visually-hidden but available to assistive tech. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip-to-content link: off-screen until focused. */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 100;
+  background: var(--color-cyan);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 8px;
 }
 
 @keyframes vtSlideUp {

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { Session } from './types';
 import { useSession } from './hooks/useSession';
+import { useTheme } from './hooks/useTheme';
 import { useVoyages } from './hooks/useVoyages';
 import { computeVoyage } from './domain/calculations';
 import { shipByCode } from './domain/ships';
@@ -19,7 +20,19 @@ import { MathExplainer } from './components/MathExplainer';
 import { UnlockModal } from './components/UnlockModal';
 import { Toast } from './components/Toast';
 
-function Workspace({ session, onSignOut, onImportExcel }: { session: Session; onSignOut: () => void; onImportExcel: () => void }) {
+function Workspace({
+  session,
+  onSignOut,
+  onImportExcel,
+  theme,
+  onToggleTheme,
+}: {
+  session: Session;
+  onSignOut: () => void;
+  onImportExcel: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+}) {
   const v = useVoyages(session);
   const { legViews, summary } = computeVoyage(v.current);
   const ship = shipByCode(session.ship);
@@ -27,6 +40,13 @@ function Workspace({ session, onSignOut, onImportExcel }: { session: Session; on
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden">
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
+      <h1 className="sr-only">
+        Voyage Speed Tracker — {ship.name}
+        {v.current ? `, ${v.current.title}` : ''}
+      </h1>
       <Header
         ship={ship}
         userLabel={v.loggedBy}
@@ -42,6 +62,8 @@ function Workspace({ session, onSignOut, onImportExcel }: { session: Session; on
         onImportExcel={onImportExcel}
         onToggleLock={v.toggleLock}
         onSignOut={onSignOut}
+        theme={theme}
+        onToggleTheme={onToggleTheme}
       />
 
       <div className="grid min-h-0 flex-1 grid-cols-[288px_1fr]">
@@ -59,7 +81,7 @@ function Workspace({ session, onSignOut, onImportExcel }: { session: Session; on
           onNewVoyage={v.createVoyage}
         />
 
-        <main className="vt-scroll overflow-auto bg-bg">
+        <main id="main-content" tabIndex={-1} className="vt-scroll overflow-auto bg-bg outline-none">
           {v.current ? (
             <div className="flex min-w-[1180px] flex-col gap-5 px-6 py-6">
               <CruiseCard voyage={v.current} shipCode={session.ship} />
@@ -111,6 +133,7 @@ function Workspace({ session, onSignOut, onImportExcel }: { session: Session; on
 
 export default function App() {
   const { session, setSession, signOut } = useSession();
+  const { theme, toggle: toggleTheme } = useTheme();
   // Bumped to force the Workspace to re-read storage after a same-ship import.
   const [reload, setReload] = useState(0);
 
@@ -152,7 +175,14 @@ export default function App() {
 
   return (
     <AuthGate>
-      <Workspace key={`${session.ship}:${reload}`} session={session} onSignOut={signOut} onImportExcel={doImportExcel} />
+      <Workspace
+        key={`${session.ship}:${reload}`}
+        session={session}
+        onSignOut={signOut}
+        onImportExcel={doImportExcel}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
     </AuthGate>
   );
 }

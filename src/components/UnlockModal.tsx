@@ -1,5 +1,5 @@
 // Unlock-reason modal — the reason is recorded to the voyage's version history.
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { LockOpenIcon } from './Icons';
 
 interface Props {
@@ -11,12 +11,36 @@ interface Props {
 }
 
 export function UnlockModal({ loggedBy, note, onNote, onConfirm, onCancel }: Props) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Escape to close, Tab trapped within the dialog, focus returned on close.
   useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Escape') {
+        onCancel();
+        return;
+      }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const f = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])',
+      );
+      if (!f.length) return;
+      const first = f[0];
+      const last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      prev?.focus?.();
+    };
   }, [onCancel]);
 
   return (
@@ -25,6 +49,11 @@ export function UnlockModal({ loggedBy, note, onNote, onConfirm, onCancel }: Pro
       onClick={onCancel}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vst-unlock-title"
+        style={{ overscrollBehavior: 'contain' }}
         className="vt-scale-in w-[440px] max-w-[92vw] overflow-hidden rounded-2xl bg-surface shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -33,15 +62,16 @@ export function UnlockModal({ loggedBy, note, onNote, onConfirm, onCancel }: Pro
             <LockOpenIcon size={15} />
           </span>
           <div>
-            <div className="text-[0.9rem] font-extrabold">Unlock voyage for editing</div>
+            <div id="vst-unlock-title" className="text-[0.9rem] font-extrabold">Unlock voyage for editing</div>
             <div className="text-[0.66rem] text-muted">Logged as {loggedBy}</div>
           </div>
         </div>
         <div className="px-5 py-[1.1rem]">
-          <label className="mb-1.5 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">
+          <label htmlFor="vst-unlock-note" className="mb-1.5 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">
             Reason · recorded to version history
           </label>
           <textarea
+            id="vst-unlock-note"
             autoFocus
             value={note}
             onChange={(e) => onNote(e.target.value)}

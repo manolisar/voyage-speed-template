@@ -1,4 +1,5 @@
 // Top bar — brand + ship, signed-in user, JSON Save/Open, XLSX export, Lock/Edit.
+import { useEffect, useRef } from 'react';
 import type { Ship } from '../types';
 import type { XlsxScope } from '../storage/excel';
 import {
@@ -10,6 +11,8 @@ import {
   UploadIcon,
   LockIcon,
   EditIcon,
+  SunIcon,
+  MoonIcon,
 } from './Icons';
 
 interface Props {
@@ -27,6 +30,8 @@ interface Props {
   onImportExcel: () => void;
   onToggleLock: () => void;
   onSignOut: () => void;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 export function Header({
@@ -44,9 +49,15 @@ export function Header({
   onImportExcel,
   onToggleLock,
   onSignOut,
+  theme,
+  onToggleTheme,
 }: Props) {
   const iconBtn =
     'inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[0.75rem] font-semibold text-ink hover:bg-rail';
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (exportMenu) menuRef.current?.querySelector('button')?.focus();
+  }, [exportMenu]);
   return (
     <header className="z-[5] flex h-14 flex-shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
       <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-cyan text-white">
@@ -63,11 +74,19 @@ export function Header({
 
       <div className="flex-1" />
 
-      {/* signed-in user + sign out */}
+      {/* signed-in user + theme + sign out */}
       <div className="flex items-center gap-2">
         <span className="hidden text-[0.68rem] text-muted sm:inline">{userLabel}</span>
+        <button
+          onClick={onToggleTheme}
+          className={`${iconBtn} px-2`}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+        >
+          {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}
+        </button>
         <button onClick={onSignOut} className={iconBtn} title="Switch ship / sign out">
-          ⇄ Switch
+          <span aria-hidden="true">⇄</span> Switch
         </button>
       </div>
 
@@ -75,7 +94,7 @@ export function Header({
         className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.62rem] font-bold tracking-[0.8px]"
         style={
           !canEdit || locked
-            ? { background: '#F3F5F9', color: '#6B7B8F', borderColor: '#E5E9F0' }
+            ? { background: 'var(--color-rail)', color: 'var(--color-muted)', borderColor: 'var(--color-line)' }
             : { background: '#FFFBEB', color: '#D97706', borderColor: '#FDE68A' }
         }
       >
@@ -97,37 +116,52 @@ export function Header({
       </button>
 
       <div className="relative">
-        <button onClick={onToggleExportMenu} className={iconBtn}>
+        <button
+          onClick={onToggleExportMenu}
+          className={iconBtn}
+          aria-haspopup="menu"
+          aria-expanded={exportMenu}
+        >
           <DownloadIcon size={13} /> Export <span className="text-[0.6rem] opacity-45">{exportMenu ? '▴' : '▾'}</span>
         </button>
         {exportMenu && (
           <div className="fixed inset-0 z-40" onClick={onCloseExportMenu}>
             <div
+              ref={menuRef}
+              role="menu"
+              aria-label="Export to Excel"
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') onCloseExportMenu();
+              }}
               className="vt-scale-in absolute right-4 top-[58px] min-w-[218px] overflow-hidden rounded-[10px] border border-line bg-surface p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.15)]"
             >
               <div className="px-2 pb-1 pt-1.5 text-[0.5rem] font-bold uppercase tracking-[1.2px] text-faint">
                 Excel · template format
               </div>
-              <div
+              <button
+                type="button"
+                role="menuitem"
                 onClick={() => onExportXlsx('current')}
-                className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-[0.78rem] text-ink hover:bg-rail"
+                className="vt-unbutton flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-[0.78rem] text-ink hover:bg-rail"
               >
                 <span className="inline-flex text-cyan-deep">
                   <FileIcon size={14} />
                 </span>
                 This voyage
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
+                role="menuitem"
                 onClick={() => onExportXlsx('all')}
-                className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-[0.78rem] text-ink hover:bg-rail"
+                className="vt-unbutton flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-[0.78rem] text-ink hover:bg-rail"
               >
                 <span className="inline-flex text-green">
                   <GridIcon size={14} />
                 </span>
                 All voyages
                 <span className="ml-auto font-mono text-[0.6rem] text-faint">{voyageTotal}</span>
-              </div>
+              </button>
             </div>
           </div>
         )}
@@ -136,8 +170,9 @@ export function Header({
       {canEdit && (
         <button
           onClick={onToggleLock}
-          className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"
-          style={{ background: locked ? '#F59E0B' : '#102a43' }}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95 ${
+            locked ? 'bg-amber-btn' : 'bg-navy dark:bg-[#244763]'
+          }`}
         >
           <span className="inline-flex">{locked ? <EditIcon size={13} /> : <LockIcon size={13} />}</span>
           {locked ? 'Enable Edit' : 'Lock Voyage'}

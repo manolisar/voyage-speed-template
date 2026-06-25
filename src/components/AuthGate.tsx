@@ -3,7 +3,7 @@
 // security (the keyword is shared and the date is public). Once unlocked it
 // stamps sessionStorage keyed by today's date, so a tab left open across local
 // midnight re-prompts with the new day's password.
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { checkPassword, localDateKey } from '../domain/password';
 import { CompassIcon, LockIcon } from './Icons';
 
@@ -21,6 +21,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [unlocked, setUnlocked] = useState(isUnlocked);
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   if (unlocked) return <>{children}</>;
 
@@ -35,6 +36,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setUnlocked(true);
     } else {
       setError(true);
+      inputRef.current?.focus();
     }
   };
 
@@ -58,28 +60,43 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </div>
         </div>
         <div className="px-5 py-5">
-          <label className="mb-2 flex items-center gap-1.5 text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">
+          <label
+            htmlFor="vst-access-code"
+            className="mb-2 flex items-center gap-1.5 text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint"
+          >
             <LockIcon size={11} /> Daily access code
           </label>
           <input
+            id="vst-access-code"
+            ref={inputRef}
             type="password"
+            name="access-code"
+            // Rotating shared code — never offer a stale saved value.
+            autoComplete="off"
+            spellCheck={false}
             autoFocus
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
               setError(false);
             }}
-            placeholder="Enter today's password"
+            aria-invalid={error}
+            aria-describedby={error ? 'vst-access-error' : undefined}
+            placeholder="Enter today's password…"
             className="w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-sm text-ink outline-none focus:border-cyan"
           />
           {error && (
-            <div className="mt-2 text-[0.72rem] font-semibold text-[color:var(--color-spd-hi-fg)]">
+            <div
+              id="vst-access-error"
+              role="alert"
+              className="mt-2 text-[0.72rem] font-semibold text-[color:var(--color-spd-hi-fg)]"
+            >
               Incorrect password for today. The code changes daily.
             </div>
           )}
           <div className="mt-3 text-[0.66rem] leading-relaxed text-muted">
-            The access code is the shared keyword followed by today's date. Ask the Chief if you
-            don't have it. Access control onboard is the workstation itself — this is a convenience
+            The access code is the shared keyword followed by today&rsquo;s date. Ask the Chief if you
+            don&rsquo;t have it. Access control onboard is the workstation itself — this is a convenience
             gate only.
           </div>
         </div>

@@ -35,7 +35,7 @@ export function LegsTable(props: Props) {
       onClick={() => onAdd(type)}
       disabled={readonly}
       className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[0.72rem] font-semibold hover:bg-rail disabled:opacity-50"
-      style={{ color: readonly ? '#B0BAC6' : '#1A2233' }}
+      style={{ color: readonly ? 'var(--color-faint)' : 'var(--color-ink)' }}
     >
       <PlusIcon size={12} />
       {label}
@@ -70,6 +70,7 @@ export function LegsTable(props: Props) {
               {COLUMNS.map(([label, align], i) => (
                 <th
                   key={i}
+                  scope="col"
                   className="sticky top-0 whitespace-nowrap border-b border-r border-line bg-rail px-2 py-2 text-[0.5rem] font-bold uppercase tracking-[1.1px] text-faint"
                   style={{ textAlign: align as 'left' | 'right' | 'center' }}
                 >

@@ -5,9 +5,9 @@ import type { Leg, LegType } from '../types';
 import type { LegView, SpeedBand } from '../domain/calculations';
 
 const TYPE_CHIP: Record<LegType, { label: string; bg: string; fg: string; bd: string; row: string }> = {
-  Port: { label: 'PORT', bg: '#EFF6FF', fg: '#2563EB', bd: '#BFDBFE', row: '#ffffff' },
-  Sea: { label: 'SEA', bg: '#ECFEFF', fg: '#0891b2', bd: '#A5F3FC', row: 'rgba(2,132,199,0.025)' },
-  Tender: { label: 'TENDER', bg: '#FFF7ED', fg: '#EA580C', bd: '#FED7AA', row: 'rgba(234,88,12,0.03)' },
+  Port: { label: 'PORT', bg: '#EFF6FF', fg: '#2563EB', bd: '#BFDBFE', row: 'var(--color-surface)' },
+  Sea: { label: 'SEA', bg: '#ECFEFF', fg: '#0891b2', bd: '#A5F3FC', row: 'rgba(2,132,199,0.05)' },
+  Tender: { label: 'TENDER', bg: '#FFF7ED', fg: '#EA580C', bd: '#FED7AA', row: 'rgba(234,88,12,0.06)' },
 };
 
 const SPEED_COLORS: Record<SpeedBand, { fg: string; bg: string }> = {
@@ -18,6 +18,27 @@ const SPEED_COLORS: Record<SpeedBand, { fg: string; bg: string }> = {
 
 const tdCls = 'border-b border-r border-line';
 const dash = <span className="font-mono text-[0.72rem] text-faint">—</span>;
+
+// Accessible names for the otherwise-unlabeled grid inputs.
+const FIELD_LABEL: Partial<Record<keyof Leg, string>> = {
+  date: 'Date',
+  port: 'Location',
+  dist: 'Distance in nautical miles',
+  eta: 'ETA',
+  arr: 'Arrival',
+  dep: 'Departure',
+  faw: 'Full away (FAW)',
+  sunrise: 'Sunrise',
+  sunset: 'Sunset',
+  utc: 'UTC offset',
+  openLoop: 'Open loop time',
+  seaCond: 'Sea condition time',
+  stbyArrDist: 'Arrival St/By distance',
+  stbyDepDist: 'Departure St/By distance',
+  remarks: 'Remarks',
+  speed: 'Target speed in knots',
+};
+const NUMERIC_FIELDS = new Set<keyof Leg>(['dist', 'utc', 'speed', 'stbyArrDist', 'stbyDepDist']);
 
 interface Props {
   leg: Leg;
@@ -58,8 +79,11 @@ export function LegRow({
       value={leg[field]}
       onChange={set(field)}
       disabled={readonly}
+      aria-label={`${FIELD_LABEL[field] ?? field}, leg ${index + 1}`}
+      inputMode={NUMERIC_FIELDS.has(field) ? 'decimal' : undefined}
+      spellCheck={false}
       placeholder={opts.placeholder ?? '—'}
-      style={{ width: opts.width, color: opts.color, fontWeight: opts.weight, textAlign: opts.align ?? 'left' }}
+      style={{ width: opts.width, color: opts.color ?? 'var(--color-ink)', fontWeight: opts.weight, textAlign: opts.align ?? 'left' }}
       className={`rounded border border-transparent bg-transparent px-1 py-[3px] text-[0.72rem] outline-none focus:border-cyan focus:bg-surface hover:bg-rail ${
         opts.mono ? 'font-mono' : ''
       }`}
@@ -70,13 +94,16 @@ export function LegRow({
     <tr style={{ background: chip.row }}>
       {/* Type */}
       <td className={`${tdCls} px-1.5 py-[3px] text-center`}>
-        <span
+        <button
+          type="button"
           onClick={() => onToggleType(index)}
-          className="rounded-[5px] border px-[7px] py-0.5 font-mono text-[0.58rem] font-extrabold tracking-[0.5px]"
+          disabled={readonly}
+          aria-label={`Leg ${index + 1} type: ${chip.label}. Change type`}
+          className="vt-unbutton rounded-[5px] border px-[7px] py-0.5 font-mono text-[0.58rem] font-extrabold tracking-[0.5px]"
           style={{ background: chip.bg, color: chip.fg, borderColor: chip.bd, cursor: readonly ? 'default' : 'pointer' }}
         >
           {chip.label}
-        </span>
+        </button>
       </td>
       {/* Date */}
       <td className={`${tdCls} px-1`}>{inp('date', { width: 96, placeholder: 'YYYY-MM-DD', mono: true })}</td>
@@ -89,27 +116,35 @@ export function LegRow({
       {/* Mode */}
       <td className={`${tdCls} px-1 text-center`}>
         {view.isPort && (
-          <span className="inline-flex overflow-hidden rounded-md border border-line">
-            <span
+          <span className="inline-flex overflow-hidden rounded-md border border-line" role="group" aria-label={`Leg ${index + 1} solve mode`}>
+            <button
+              type="button"
               onClick={() => onMode(index, 'speed')}
-              className="cursor-pointer px-1.5 py-[3px] text-[0.54rem] font-extrabold tracking-[0.5px]"
-              style={leg.mode === 'speed' ? { background: '#06b6d4', color: '#fff' } : { background: '#fff', color: '#6B7B8F' }}
+              disabled={readonly}
+              aria-pressed={leg.mode === 'speed'}
+              aria-label="Speed mode: enter times, compute speed"
+              className="vt-unbutton px-1.5 py-[3px] text-[0.54rem] font-extrabold tracking-[0.5px]"
+              style={leg.mode === 'speed' ? { background: '#06b6d4', color: '#fff' } : { background: 'var(--color-surface)', color: 'var(--color-muted)' }}
             >
               SPD
-            </span>
-            <span
+            </button>
+            <button
+              type="button"
               onClick={() => onMode(index, 'time')}
-              className="cursor-pointer border-l border-line px-1.5 py-[3px] text-[0.54rem] font-extrabold tracking-[0.5px]"
-              style={leg.mode !== 'speed' ? { background: '#6366F1', color: '#fff' } : { background: '#fff', color: '#6B7B8F' }}
+              disabled={readonly}
+              aria-pressed={leg.mode !== 'speed'}
+              aria-label="Time mode: enter target speed, compute ETA"
+              className="vt-unbutton border-l border-line px-1.5 py-[3px] text-[0.54rem] font-extrabold tracking-[0.5px]"
+              style={leg.mode !== 'speed' ? { background: '#6366F1', color: '#fff' } : { background: 'var(--color-surface)', color: 'var(--color-muted)' }}
             >
               TIME
-            </span>
+            </button>
           </span>
         )}
       </td>
       {/* Time (computed) */}
       <td className={`${tdCls} px-1.5 text-right`}>
-        <div className="font-mono text-[0.74rem] font-bold" style={{ color: view.timeComputed ? '#1A2233' : '#B0BAC6' }}>
+        <div className="font-mono text-[0.74rem] font-bold" style={{ color: view.timeComputed ? 'var(--color-ink)' : 'var(--color-faint)' }}>
           {view.timeDisplay}
         </div>
       </td>
@@ -134,6 +169,9 @@ export function LegRow({
             value={leg.speed}
             onChange={set('speed')}
             disabled={readonly}
+            aria-label={`Target speed in knots, leg ${index + 1}`}
+            inputMode="decimal"
+            spellCheck={false}
             placeholder="kn"
             style={{ width: 54 }}
             className="rounded border border-cyan bg-[#ECFEFF] px-1 py-[3px] text-right font-mono text-[0.72rem] font-bold outline-none focus:bg-surface"
@@ -187,8 +225,8 @@ export function LegRow({
         <span className="font-mono text-[0.7rem] text-pink">{view.portDisplay}</span>
       </td>
       {/* Sunrise / Sunset */}
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunrise', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true, color: '#6B7B8F' }) : dash}</td>
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunset', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true, color: '#6B7B8F' }) : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunrise', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true, color: 'var(--color-muted)' }) : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunset', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true, color: 'var(--color-muted)' }) : dash}</td>
       {/* Daylight */}
       <td className={`${tdCls} px-1.5 text-center`}>
         <span className="font-mono text-[0.7rem]" style={{ color: view.hasDaylight ? '#D97706' : '#B0BAC6' }}>
@@ -201,14 +239,14 @@ export function LegRow({
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('openLoop', { width: 58, placeholder: 'HH:mm', align: 'center', mono: true, color: '#0284C7' }) : dash}</td>
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('seaCond', { width: 58, placeholder: 'HH:mm', align: 'center', mono: true, color: '#6366F1' }) : dash}</td>
       {/* Remarks */}
-      <td className={`${tdCls} px-1`}>{inp('remarks', { width: 150, color: '#6B7B8F' })}</td>
+      <td className={`${tdCls} px-1`}>{inp('remarks', { width: 150, color: 'var(--color-muted)' })}</td>
       {/* Actions */}
       <td className="whitespace-nowrap border-b border-line px-1.5 py-[3px] text-center">
-        <span className="inline-flex gap-0.5" style={{ opacity: readonly ? 0.25 : 1 }}>
-          <ActionBtn title="Move up" hover="#0891b2" onClick={() => onUp(index)}>↑</ActionBtn>
-          <ActionBtn title="Move down" hover="#0891b2" onClick={() => onDown(index)}>↓</ActionBtn>
-          <ActionBtn title="Insert below" hover="#059669" onClick={() => onInsert(index)}>＋</ActionBtn>
-          <ActionBtn title="Delete" hover="#DC2626" onClick={() => onDelete(index)}>✕</ActionBtn>
+        <span className="inline-flex gap-0.5">
+          <ActionBtn label={`Move leg ${index + 1} up`} hoverClass="hover:text-cyan-deep" disabled={readonly} onClick={() => onUp(index)}>↑</ActionBtn>
+          <ActionBtn label={`Move leg ${index + 1} down`} hoverClass="hover:text-cyan-deep" disabled={readonly} onClick={() => onDown(index)}>↓</ActionBtn>
+          <ActionBtn label={`Insert leg below leg ${index + 1}`} hoverClass="hover:text-green" disabled={readonly} onClick={() => onInsert(index)}>＋</ActionBtn>
+          <ActionBtn label={`Delete leg ${index + 1}`} hoverClass="hover:text-[#DC2626]" disabled={readonly} onClick={() => onDelete(index)}>✕</ActionBtn>
         </span>
       </td>
     </tr>
@@ -217,25 +255,26 @@ export function LegRow({
 
 function ActionBtn({
   children,
-  title,
-  hover,
+  label,
+  hoverClass,
+  disabled,
   onClick,
 }: {
   children: React.ReactNode;
-  title: string;
-  hover: string;
+  label: string;
+  hoverClass: string;
+  disabled: boolean;
   onClick: () => void;
 }) {
   return (
-    <span
-      title={title}
+    <button
+      type="button"
+      aria-label={label}
       onClick={onClick}
-      className="cursor-pointer rounded px-[3px] text-[0.8rem] leading-none text-muted hover:bg-rail"
-      style={{ ['--hov' as string]: hover }}
-      onMouseEnter={(e) => (e.currentTarget.style.color = hover)}
-      onMouseLeave={(e) => (e.currentTarget.style.color = '#6B7B8F')}
+      disabled={disabled}
+      className={`vt-unbutton rounded px-[3px] text-[0.8rem] leading-none text-muted hover:bg-rail disabled:opacity-25 ${hoverClass}`}
     >
       {children}
-    </span>
+    </button>
   );
 }

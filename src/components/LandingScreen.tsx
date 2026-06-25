@@ -1,6 +1,6 @@
 // Identify step — pick ship, enter name, pick role. Runs BEFORE the daily
 // password (AuthGate). Stamps the session used for attribution + edit rights.
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import type { Role, Session, ShipCode } from '../types';
 import { SHIPS } from '../domain/ships';
 import { ROLES, roleCanEdit } from '../domain/roles';
@@ -11,14 +11,23 @@ export function LandingScreen({ initial, onDone }: { initial: Session | null; on
   const [name, setName] = useState(initial?.name ?? '');
   const [role, setRole] = useState<Role>(initial?.role ?? 'navigation');
   const [touched, setTouched] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const shipGroupRef = useRef<HTMLDivElement>(null);
 
   const ready = !!ship && name.trim().length > 0;
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    if (!ready) return;
-    onDone({ ship: ship!, name: name.trim(), role });
+    if (!ship) {
+      shipGroupRef.current?.querySelector('button')?.focus();
+      return;
+    }
+    if (!name.trim()) {
+      nameRef.current?.focus();
+      return;
+    }
+    onDone({ ship, name: name.trim(), role });
   };
 
   return (
@@ -40,8 +49,10 @@ export function LandingScreen({ initial, onDone }: { initial: Session | null; on
         </div>
 
         <div className="px-5 py-5">
-          <label className="mb-2 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">Ship</label>
-          <div className="grid grid-cols-5 gap-2">
+          <div id="vst-ship-label" className="mb-2 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">
+            Ship
+          </div>
+          <div ref={shipGroupRef} role="group" aria-labelledby="vst-ship-label" className="grid grid-cols-5 gap-2">
             {SHIPS.map((s) => {
               const on = ship === s.code;
               return (
@@ -49,17 +60,19 @@ export function LandingScreen({ initial, onDone }: { initial: Session | null; on
                   type="button"
                   key={s.code}
                   onClick={() => setShip(s.code)}
+                  aria-pressed={on}
                   className="flex flex-col items-center gap-1 rounded-lg border px-1 py-2.5 text-center transition-colors"
                   style={
                     on
-                      ? { background: 'rgba(6,182,212,0.10)', borderColor: 'rgba(6,182,212,0.55)' }
-                      : { background: '#fff', borderColor: '#E5E9F0' }
+                      ? { background: 'rgba(6,182,212,0.12)', borderColor: 'rgba(6,182,212,0.55)' }
+                      : { background: 'var(--color-surface)', borderColor: 'var(--color-line)' }
                   }
+                  aria-label={`${s.name}, built ${s.built}`}
                   title={`${s.name} · ${s.built}`}
                 >
                   <span
                     className="font-mono text-[0.95rem] font-extrabold"
-                    style={{ color: on ? '#0891b2' : '#1A2233' }}
+                    style={{ color: on ? 'var(--color-cyan-deep)' : 'var(--color-ink)' }}
                   >
                     {s.code}
                   </span>
@@ -68,24 +81,41 @@ export function LandingScreen({ initial, onDone }: { initial: Session | null; on
               );
             })}
           </div>
-          {touched && !ship && <div className="mt-1.5 text-[0.66rem] font-semibold text-pink">Select a ship.</div>}
+          {touched && !ship && (
+            <div role="alert" className="mt-1.5 text-[0.66rem] font-semibold text-pink">
+              Select a ship.
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1.5 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">Name</label>
+              <label htmlFor="vst-name" className="mb-1.5 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">
+                Name
+              </label>
               <input
+                id="vst-name"
+                ref={nameRef}
+                name="name"
+                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                aria-invalid={touched && !name.trim()}
                 placeholder="e.g. M. Archontakis"
                 className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-cyan"
               />
               {touched && !name.trim() && (
-                <div className="mt-1.5 text-[0.66rem] font-semibold text-pink">Enter your name.</div>
+                <div role="alert" className="mt-1.5 text-[0.66rem] font-semibold text-pink">
+                  Enter your name.
+                </div>
               )}
             </div>
             <div>
-              <label className="mb-1.5 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">Role</label>
+              <label htmlFor="vst-role" className="mb-1.5 block text-[0.55rem] font-bold uppercase tracking-[1.2px] text-faint">
+                Role
+              </label>
               <select
+                id="vst-role"
+                name="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value as Role)}
                 className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-cyan"
@@ -102,7 +132,7 @@ export function LandingScreen({ initial, onDone }: { initial: Session | null; on
 
           <div className="mt-3 text-[0.66rem] leading-relaxed text-muted">
             Your name + role are stamped on every change you commit (attribution). Bridge Officer is view-only;
-            all other roles may edit. The next screen asks for today's access code.
+            all other roles may edit. The next screen asks for today&rsquo;s access code.
           </div>
         </div>
 

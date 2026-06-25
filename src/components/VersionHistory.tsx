@@ -2,9 +2,9 @@
 import type { Version } from '../types';
 
 function colorsFor(action: string): { color: string; bg: string } {
-  if (action === 'Unlocked') return { color: '#D97706', bg: '#FFFBEB' };
-  if (action === 'Locked') return { color: '#6B7B8F', bg: '#F3F5F9' };
-  return { color: '#0891b2', bg: '#ECFEFF' };
+  if (action === 'Unlocked') return { color: '#D97706', bg: 'rgba(217,119,6,0.12)' };
+  if (action === 'Locked') return { color: 'var(--color-muted)', bg: 'var(--color-rail)' };
+  return { color: 'var(--color-cyan-deep)', bg: 'rgba(6,182,212,0.12)' };
 }
 
 export function VersionHistory({ versions }: { versions: Version[] }) {

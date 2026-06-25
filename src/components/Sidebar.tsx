@@ -72,6 +72,11 @@ export function Sidebar({
           <SearchIcon size={14} />
         </span>
         <input
+          type="search"
+          name="voyage-search"
+          autoComplete="off"
+          spellCheck={false}
+          aria-label="Search voyages and ports"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search voyages, ports…"
@@ -100,8 +105,8 @@ export function Sidebar({
               className="rounded-full border px-2.5 py-1 text-[0.6rem] font-bold uppercase tracking-[0.8px]"
               style={
                 on
-                  ? { background: 'rgba(6,182,212,0.10)', color: '#0891b2', borderColor: 'rgba(6,182,212,0.25)' }
-                  : { background: '#F3F5F9', color: '#6B7B8F', borderColor: '#E5E9F0' }
+                  ? { background: 'rgba(6,182,212,0.12)', color: 'var(--color-cyan-deep)', borderColor: 'rgba(6,182,212,0.35)' }
+                  : { background: 'var(--color-rail)', color: 'var(--color-muted)', borderColor: 'var(--color-line)' }
               }
             >
               {label}
@@ -125,46 +130,52 @@ export function Sidebar({
           const rows = groups[qk];
           return (
             <div key={qk}>
-              <div
+              <button
+                type="button"
                 onClick={() => onToggleQuarter(qk)}
-                className="flex cursor-pointer select-none items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.8px] text-[#334e68] hover:bg-rail"
+                aria-expanded={open}
+                className="vt-unbutton flex w-full select-none items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.8px] text-muted hover:bg-rail"
               >
-                <span className="w-[11px] flex-shrink-0 text-center text-[0.65rem] text-faint">
+                <span aria-hidden="true" className="w-[11px] flex-shrink-0 text-center text-[0.65rem] text-faint">
                   {open ? '▾' : '▸'}
                 </span>
                 <span className="flex-shrink-0 text-muted">
                   <CalendarIcon size={13} />
                 </span>
-                <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{qk}</span>
+                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left">{qk}</span>
                 <span className="rounded-full bg-rail px-[7px] py-px font-mono text-[0.56rem] font-semibold text-muted">
                   {rows.length}
                 </span>
-              </div>
+              </button>
               {open && (
                 <div className="mb-1 ml-3 border-l border-line pl-2">
                   {rows.map((vo) => {
                     const active = vo.id === selectedId;
                     const glyph = vo.locked ? '🔒' : vo.ended ? '⚑' : '●';
-                    const statusFg = vo.locked ? '#B0BAC6' : vo.ended ? '#6B7B8F' : '#059669';
+                    const statusLabel = vo.locked ? 'Locked' : vo.ended ? 'Ended' : 'Active';
+                    const statusFg = vo.locked ? 'var(--color-faint)' : vo.ended ? 'var(--color-muted)' : '#10b981';
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={vo.id}
                         onClick={() => onSelect(vo.id)}
-                        className="flex cursor-pointer select-none items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-rail"
+                        aria-current={active ? 'true' : undefined}
+                        className="vt-unbutton flex w-full select-none items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-rail"
                         style={{
-                          background: active ? 'rgba(6,182,212,0.10)' : 'transparent',
-                          color: active ? '#0891b2' : '#1A2233',
+                          background: active ? 'rgba(6,182,212,0.12)' : 'transparent',
+                          color: active ? 'var(--color-cyan-deep)' : 'var(--color-ink)',
                           fontWeight: active ? 600 : 400,
                         }}
                       >
-                        <span className="w-3.5 flex-shrink-0 text-center" style={{ color: active ? '#0891b2' : '#6B7B8F' }}>
+                        <span aria-hidden="true" className="w-3.5 flex-shrink-0 text-center" style={{ color: active ? 'var(--color-cyan-deep)' : 'var(--color-muted)' }}>
                           ⚓
                         </span>
-                        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{vo.title}</span>
-                        <span className="font-mono text-[0.58rem] tracking-[0.5px]" style={{ color: statusFg }}>
+                        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left">{vo.title}</span>
+                        <span className="sr-only">{statusLabel}</span>
+                        <span aria-hidden="true" className="font-mono text-[0.58rem] tracking-[0.5px]" style={{ color: statusFg }}>
                           {glyph}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
