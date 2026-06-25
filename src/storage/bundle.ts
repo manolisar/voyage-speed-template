@@ -16,10 +16,11 @@ export const APP_ID = 'voyage-speed-template';
 // 25 MB guard so a malformed/hostile file can't OOM the tab on JSON.parse.
 const MAX_BYTES = 25 * 1024 * 1024;
 
-export function buildBundle(voyages: VoyageMap, selectedId: string): Bundle {
+export function buildBundle(voyages: VoyageMap, selectedId: string, shipId = ''): Bundle {
   return {
     bundleVersion: BUNDLE_VERSION,
     app: APP_ID,
+    shipId,
     exportedAt: new Date().toISOString(),
     selectedId,
     voyages,
@@ -81,7 +82,8 @@ export function parseBundle(text: string): Bundle {
     typeof p.selectedId === 'string' && voyages[p.selectedId]
       ? p.selectedId
       : Object.keys(voyages)[0] ?? '';
-  return buildBundle(voyages, selectedId);
+  const shipId = typeof p.shipId === 'string' ? p.shipId : '';
+  return buildBundle(voyages, selectedId, shipId);
 }
 
 // Fill any missing top-level voyage fields so downstream code can trust the shape.

@@ -27,7 +27,12 @@ export interface LegView {
   etaComputed: boolean; // TIME mode → show computed ETA
   etaInput: boolean; // SPD mode → ETA is an input
   etaDisplay: string; // computed ETA 'HH:MM' or '—'
-  stbyDisplay: string;
+  // St/By split: arrival (Arr−ETA, pilot→berth) and departure (FAW−Dep, berth→pilot).
+  // Each carries a manual distance (on the Leg) and a computed maneuvering speed.
+  stbyArrTime: string; // 'H:MM' or '—'
+  stbyArrSpeed: string | null; // computed kn (dist ÷ arrival time) or null
+  stbyDepTime: string;
+  stbyDepSpeed: string | null;
   portDisplay: string;
   daylightDisplay: string;
   hasDaylight: boolean;
@@ -104,30 +109,34 @@ export function computeVoyage(v: Voyage | undefined): VoyageComputation {
         calcDist += d;
       }
 
-      // St/By (maneuvering) = arrival (Arr−ETA) + departure (FAW−Dep);
-      // Port time = Dep−Arr.
+      // St/By (maneuvering): arrival (Arr−ETA, pilot→berth) and departure
+      // (FAW−Dep, berth→pilot). Port time = Dep−Arr.
       const eMin = hhmmToMin(leg.eta);
       const aMin = hhmmToMin(leg.arr);
       const dpMin = hhmmToMin(leg.dep);
       const fMin = hhmmToMin(leg.faw);
-      let lStby = 0;
+      const arrStbyMin = aMin != null && eMin != null && aMin >= eMin ? aMin - eMin : null;
+      const depStbyMin = fMin != null && dpMin != null && fMin >= dpMin ? fMin - dpMin : null;
       let lPort = 0;
-      let hasStby = false;
       let hasPort = false;
-      if (aMin != null && eMin != null && aMin >= eMin) {
-        lStby += aMin - eMin;
-        hasStby = true;
-      }
-      if (fMin != null && dpMin != null && fMin >= dpMin) {
-        lStby += fMin - dpMin;
-        hasStby = true;
-      }
       if (dpMin != null && aMin != null && dpMin >= aMin) {
         lPort = dpMin - aMin;
         hasPort = true;
       }
-      stbyMin += lStby;
+      stbyMin += (arrStbyMin ?? 0) + (depStbyMin ?? 0);
       portMin += lPort;
+
+      // Maneuvering speeds = St/By distance ÷ St/By time (hours).
+      const arrDist = Number(leg.stbyArrDist);
+      const depDist = Number(leg.stbyDepDist);
+      const arrStbySpeed =
+        arrStbyMin != null && arrStbyMin > 0 && arrDist > 0 && leg.stbyArrDist !== ''
+          ? arrDist / (arrStbyMin / 60)
+          : null;
+      const depStbySpeed =
+        depStbyMin != null && depStbyMin > 0 && depDist > 0 && leg.stbyDepDist !== ''
+          ? depDist / (depStbyMin / 60)
+          : null;
 
       // This port's departure (FAW, else Dep) becomes the start for the next.
       const depMin = hhmmToMin(leg.faw);
@@ -147,7 +156,10 @@ export function computeVoyage(v: Voyage | undefined): VoyageComputation {
         etaComputed: leg.mode !== 'speed',
         etaInput: leg.mode === 'speed',
         etaDisplay: etaComputedMin != null ? minToHHMM(etaComputedMin) : '—',
-        stbyDisplay: hasStby ? fmtHM(lStby) : '—',
+        stbyArrTime: arrStbyMin != null ? fmtHM(arrStbyMin) : '—',
+        stbyArrSpeed: arrStbySpeed != null ? arrStbySpeed.toFixed(1) : null,
+        stbyDepTime: depStbyMin != null ? fmtHM(depStbyMin) : '—',
+        stbyDepSpeed: depStbySpeed != null ? depStbySpeed.toFixed(1) : null,
         portDisplay: hasPort ? fmtHM(lPort) : '—',
         ...daylight(leg),
       };
@@ -167,7 +179,10 @@ export function computeVoyage(v: Voyage | undefined): VoyageComputation {
       etaComputed: false,
       etaInput: false,
       etaDisplay: '—',
-      stbyDisplay: '—',
+      stbyArrTime: '—',
+      stbyArrSpeed: null,
+      stbyDepTime: '—',
+      stbyDepSpeed: null,
       portDisplay: '—',
       ...daylight(leg),
     };

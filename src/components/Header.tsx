@@ -1,5 +1,5 @@
-// Top bar — brand, lock badge, JSON Save/Open, XLSX export menu, Lock/Edit.
-import type { Voyage } from '../types';
+// Top bar — brand + ship, signed-in user, JSON Save/Open, XLSX export, Lock/Edit.
+import type { Ship } from '../types';
 import type { XlsxScope } from '../storage/xlsx';
 import {
   CompassIcon,
@@ -13,7 +13,9 @@ import {
 } from './Icons';
 
 interface Props {
-  voyage: Voyage | undefined;
+  ship: Ship;
+  userLabel: string; // "M. Archontakis · Navigation Officer"
+  canEdit: boolean;
   locked: boolean;
   voyageTotal: number;
   exportMenu: boolean;
@@ -23,9 +25,13 @@ interface Props {
   onSaveJson: () => void;
   onOpenJson: () => void;
   onToggleLock: () => void;
+  onSignOut: () => void;
 }
 
 export function Header({
+  ship,
+  userLabel,
+  canEdit,
   locked,
   voyageTotal,
   exportMenu,
@@ -35,6 +41,7 @@ export function Header({
   onSaveJson,
   onOpenJson,
   onToggleLock,
+  onSignOut,
 }: Props) {
   const iconBtn =
     'inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[0.75rem] font-semibold text-ink hover:bg-rail';
@@ -45,29 +52,39 @@ export function Header({
       </span>
       <div>
         <div className="text-[0.95rem] font-extrabold leading-tight tracking-[-0.2px]">
-          Voyage Speed Tracker <span className="font-medium opacity-65">— Celebrity Eclipse</span>
+          Voyage Speed Tracker <span className="font-medium opacity-65">— {ship.name}</span>
         </div>
         <div className="font-mono text-[0.6rem] uppercase tracking-[1px] text-faint">
-          EC · 2010 · Speed &amp; Time Template
+          {ship.code} · {ship.built} · Speed &amp; Time Template
         </div>
       </div>
 
       <div className="flex-1" />
 
+      {/* signed-in user + sign out */}
+      <div className="flex items-center gap-2">
+        <span className="hidden text-[0.68rem] text-muted sm:inline">{userLabel}</span>
+        <button onClick={onSignOut} className={iconBtn} title="Switch ship / sign out">
+          ⇄ Switch
+        </button>
+      </div>
+
       <span
         className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.62rem] font-bold tracking-[0.8px]"
         style={
-          locked
+          !canEdit || locked
             ? { background: '#F3F5F9', color: '#6B7B8F', borderColor: '#E5E9F0' }
             : { background: '#FFFBEB', color: '#D97706', borderColor: '#FDE68A' }
         }
       >
-        {locked ? 'VIEW ONLY' : 'EDIT MODE · CHIEF'}
+        {!canEdit ? 'VIEW ONLY · BRIDGE' : locked ? 'VIEW ONLY' : 'EDIT MODE'}
       </span>
 
-      <button onClick={onOpenJson} className={iconBtn} title="Open a voyages .json file">
-        <UploadIcon size={13} /> Open
-      </button>
+      {canEdit && (
+        <button onClick={onOpenJson} className={iconBtn} title="Open a voyages .json file">
+          <UploadIcon size={13} /> Open
+        </button>
+      )}
       <button onClick={onSaveJson} className={iconBtn} title="Save all voyages to a .json file">
         <SaveIcon size={13} /> Save
       </button>
@@ -109,14 +126,16 @@ export function Header({
         )}
       </div>
 
-      <button
-        onClick={onToggleLock}
-        className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"
-        style={{ background: locked ? '#F59E0B' : '#102a43' }}
-      >
-        <span className="inline-flex">{locked ? <EditIcon size={13} /> : <LockIcon size={13} />}</span>
-        {locked ? 'Enable Edit' : 'Lock Voyage'}
-      </button>
+      {canEdit && (
+        <button
+          onClick={onToggleLock}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"
+          style={{ background: locked ? '#F59E0B' : '#102a43' }}
+        >
+          <span className="inline-flex">{locked ? <EditIcon size={13} /> : <LockIcon size={13} />}</span>
+          {locked ? 'Enable Edit' : 'Lock Voyage'}
+        </button>
+      )}
     </header>
   );
 }

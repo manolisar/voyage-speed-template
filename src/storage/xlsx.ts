@@ -2,8 +2,9 @@
 // 564–661). Hand-builds a minimal OOXML workbook (CRC32 + ZIP + the part XML)
 // with one worksheet per voyage, preserving the original template layout and
 // the LIVE Time/Speed formulas + Σ TOTAL so the file recomputes in Excel.
-import type { Leg, Voyage, VoyageMap } from '../types';
+import type { Leg, ShipCode, Voyage, VoyageMap } from '../types';
 import { dayNum, hhmmToMin, instUTC } from '../domain/time';
+import { shipByCode } from '../domain/ships';
 
 // ── low-level encoders ──────────────────────────────────────────────────
 function xmlEsc(s: unknown): string {
@@ -156,7 +157,7 @@ function stylesXml(): string {
   );
 }
 
-function sheetXml(vo: Voyage): string {
+function sheetXml(vo: Voyage, shipName: string): string {
   const START = 5;
   const legs = vo.legs;
   const rowOf = (r: number, inner: string) => `<row r="${r}">${inner}</row>`;
@@ -179,13 +180,14 @@ function sheetXml(vo: Voyage): string {
     .map((l) => (l.port || '').split(',')[0])
     .filter(Boolean)
     .join('  -  ');
-  rows += rowOf(1, cStr(1, 1, 'Celebrity Eclipse  —  Voyage ' + vo.id, 1));
+  rows += rowOf(1, cStr(1, 1, shipName + '  —  Voyage ' + vo.id, 1));
   rows += rowOf(2, cStr(1, 2, route, 0));
   rows += rowOf(3, '');
   const heads: [number, string][] = [
     [2, 'Date'], [3, 'Location'], [4, 'Type'], [5, 'Distance'], [6, 'Time'], [7, 'Speed'], [8, 'ETA'],
     [9, 'Arrival'], [10, 'Departure'], [11, 'FAW'], [12, 'Sunrise'], [13, 'Sunset'], [14, 'ZT'], [15, 'Remarks'],
     [16, 'Open Loop Time'], [17, 'Sea Condition'],
+    [18, 'Arr St/By nm'], [19, 'Arr St/By kn'], [20, 'Dep St/By nm'], [21, 'Dep St/By kn'],
   ];
   rows += rowOf(4, heads.map((h) => cStr(h[0], 4, h[1], 2)).join(''));
 
@@ -243,6 +245,21 @@ function sheetXml(vo: Voyage): string {
     cs += cNum(16, r, olm != null ? olm / 1440 : '', 5);
     const scm = hhmmToMin(leg.seaCond);
     cs += cNum(17, r, scm != null ? scm / 1440 : '', 5);
+    if (isCall) {
+      // St/By split: arrival (Arr−ETA) and departure (FAW−Dep) distance + speed.
+      const eMin = hhmmToMin(leg.eta);
+      const aMin = hhmmToMin(leg.arr);
+      const dpMin = hhmmToMin(leg.dep);
+      const fMin = hhmmToMin(leg.faw);
+      const arrMin = aMin != null && eMin != null && aMin >= eMin ? aMin - eMin : null;
+      const depMin = fMin != null && dpMin != null && fMin >= dpMin ? fMin - dpMin : null;
+      const arrDist = Number(leg.stbyArrDist);
+      const depDistN = Number(leg.stbyDepDist);
+      cs += cNum(18, r, leg.stbyArrDist !== '' && !isNaN(arrDist) ? arrDist : '', 7);
+      cs += cNum(19, r, arrMin && arrMin > 0 && arrDist > 0 ? arrDist / (arrMin / 60) : '', 6);
+      cs += cNum(20, r, leg.stbyDepDist !== '' && !isNaN(depDistN) ? depDistN : '', 7);
+      cs += cNum(21, r, depMin && depMin > 0 && depDistN > 0 ? depDistN / (depMin / 60) : '', 6);
+    }
     rows += rowOf(r, cs);
     if (isCall) {
       const fawMin = hhmmToMin(leg.faw);
@@ -258,8 +275,8 @@ function sheetXml(vo: Voyage): string {
     cStr(4, sumRow, 'Σ TOTAL', 2) + cF(5, sumRow, 'SUM(' + col(5) + START + ':' + col(5) + (sumRow - 1) + ')', null, 7),
   );
   const cols =
-    '<cols><col min="2" max="2" width="11"/><col min="3" max="3" width="26"/><col min="4" max="4" width="6"/><col min="5" max="13" width="9"/><col min="14" max="14" width="9"/><col min="15" max="15" width="24"/><col min="16" max="16" width="13"/><col min="17" max="17" width="13"/></cols>';
-  const merges = '<mergeCells count="2"><mergeCell ref="A1:Q1"/><mergeCell ref="A2:Q2"/></mergeCells>';
+    '<cols><col min="2" max="2" width="11"/><col min="3" max="3" width="26"/><col min="4" max="4" width="6"/><col min="5" max="13" width="9"/><col min="14" max="14" width="9"/><col min="15" max="15" width="24"/><col min="16" max="16" width="13"/><col min="17" max="17" width="13"/><col min="18" max="21" width="11"/></cols>';
+  const merges = '<mergeCells count="2"><mergeCell ref="A1:U1"/><mergeCell ref="A2:U2"/></mergeCells>';
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
@@ -272,8 +289,8 @@ function sheetXml(vo: Voyage): string {
   );
 }
 
-export function buildXlsx(list: Voyage[]): Uint8Array {
-  const sheets = list.map((vo) => ({ id: vo.id, xml: sheetXml(vo) }));
+export function buildXlsx(list: Voyage[], shipName = 'Celebrity Eclipse'): Uint8Array {
+  const sheets = list.map((vo) => ({ id: vo.id, xml: sheetXml(vo, shipName) }));
   const files: ZipFile[] = [];
   files.push({ name: '[Content_Types].xml', data: contentTypes(sheets.length) });
   files.push({
@@ -293,20 +310,21 @@ export function buildXlsx(list: Voyage[]): Uint8Array {
 export type XlsxScope = 'current' | 'all';
 
 /** Build and download the workbook. Returns the filename used. */
-export function exportXlsx(voyages: VoyageMap, currentId: string, scope: XlsxScope): string {
+export function exportXlsx(ship: ShipCode, voyages: VoyageMap, currentId: string, scope: XlsxScope): string {
+  const shipName = shipByCode(ship).name;
   const list =
     scope === 'all'
       ? Object.keys(voyages)
           .sort((a, b) => Number(a) - Number(b))
           .map((id) => voyages[id])
       : [voyages[currentId]];
-  const bytes = buildXlsx(list);
+  const bytes = buildXlsx(list, shipName);
   const blob = new Blob([bytes as BlobPart], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const filename = scope === 'all' ? 'EC_Speed-Templates_2026-2027.xlsx' : 'EC_' + currentId + '_speed-template.xlsx';
+  const filename = scope === 'all' ? `${ship}_Speed-Templates.xlsx` : `${ship}_${currentId}_speed-template.xlsx`;
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);

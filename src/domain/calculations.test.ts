@@ -16,10 +16,18 @@ describe('computeVoyage — SPD mode (voyage 586)', () => {
     expect(r.speedBand).toBe('ok');
   });
 
-  it('derives St/By and Port hours per leg', () => {
+  it('splits St/By into arrival and departure with maneuvering speeds', () => {
     const r = legViews[3];
-    expect(r.stbyDisplay).toBe('2:00'); // (Arr−ETA)=1h + (FAW−Dep)=1h
+    expect(r.stbyArrTime).toBe('1:00'); // Arr 09:00 − ETA 08:00
+    expect(r.stbyDepTime).toBe('1:00'); // FAW 19:00 − Dep 18:00
+    expect(r.stbyArrSpeed).toBe('11.0'); // 11 nm / 1.0 h
+    expect(r.stbyDepSpeed).toBe('9.0'); // 9 nm / 1.0 h
     expect(r.portDisplay).toBe('9:00'); // Dep−Arr
+  });
+
+  it('rolls St/By time into the summary (arr + dep across legs)', () => {
+    // Basseterre alone contributes 2:00 of St/By; total must be ≥ that.
+    expect(summary.stbyMin >= 120).toBe(true);
   });
 
   it('computes daylight = sunset − sunrise', () => {

@@ -30,6 +30,8 @@ export interface Leg {
   utc: string; // signed hours, e.g. '-4'
   openLoop: string; // HH:MM duration
   seaCond: string; // HH:MM duration
+  stbyArrDist: string; // nm covered during arrival St/By (pilot/ETA → berth/Arr)
+  stbyDepDist: string; // nm covered during departure St/By (berth/Dep → FAW)
   remarks: string;
   speed: string; // kn target (input in time mode)
 }
@@ -56,11 +58,30 @@ export type VoyageMap = Record<string, Voyage>;
 // Filter pills in the sidebar.
 export type Filter = 'all' | 'active' | 'ended' | 'locked';
 
-// On-disk JSON bundle (v8 philosophy — JSON is the record).
+// On-disk JSON bundle (v8 philosophy — JSON is the record). One bundle per ship.
 export interface Bundle {
   bundleVersion: number;
   app: string;
+  shipId: string;
   exportedAt: string;
   selectedId: string;
   voyages: VoyageMap;
+}
+
+// ── Fleet & roles (Solstice-class, mirrors Voyage Tracker v8) ────────────
+export type ShipCode = 'SL' | 'EQ' | 'EC' | 'SI' | 'RF';
+
+export interface Ship {
+  code: ShipCode;
+  name: string;
+  built: number;
+}
+
+// Bridge/engine roles. `Bridge Officer` is view-only; everyone else may edit.
+export type Role = 'master' | 'staff' | 'navigation' | 'bridge' | 'chief';
+
+export interface Session {
+  ship: ShipCode;
+  name: string;
+  role: Role;
 }

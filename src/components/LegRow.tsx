@@ -154,9 +154,33 @@ export function LegRow({
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('arr', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true }) : dash}</td>
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('dep', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true }) : dash}</td>
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('faw', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true }) : dash}</td>
-      {/* St/By */}
+      {/* Arr St/By: distance · time · speed */}
+      <td className={`${tdCls} px-1 text-center`}>
+        {view.isPort ? inp('stbyArrDist', { width: 46, align: 'right', mono: true }) : dash}
+      </td>
       <td className={`${tdCls} px-1.5 text-center`}>
-        <span className="font-mono text-[0.7rem] text-amber">{view.stbyDisplay}</span>
+        <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyArrTime : '—'}</span>
+      </td>
+      <td className={`${tdCls} px-1.5 text-center`}>
+        {view.stbyArrSpeed ? (
+          <span className="font-mono text-[0.7rem] font-bold text-cyan-deep">{view.stbyArrSpeed}</span>
+        ) : (
+          dash
+        )}
+      </td>
+      {/* Dep St/By: distance · time · speed */}
+      <td className={`${tdCls} px-1 text-center`}>
+        {view.isPort ? inp('stbyDepDist', { width: 46, align: 'right', mono: true }) : dash}
+      </td>
+      <td className={`${tdCls} px-1.5 text-center`}>
+        <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyDepTime : '—'}</span>
+      </td>
+      <td className={`${tdCls} px-1.5 text-center`}>
+        {view.stbyDepSpeed ? (
+          <span className="font-mono text-[0.7rem] font-bold text-cyan-deep">{view.stbyDepSpeed}</span>
+        ) : (
+          dash
+        )}
       </td>
       {/* Port hrs */}
       <td className={`${tdCls} px-1.5 text-center`}>

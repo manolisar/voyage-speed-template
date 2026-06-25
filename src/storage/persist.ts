@@ -1,18 +1,22 @@
-// Lossless autosave to localStorage (design used the same key). This makes a
-// refresh non-destructive even without a manual JSON Save; the .json file
-// (storage/jsonFile.ts) is the portable record / hand-off artifact.
-import type { VoyageMap } from '../types';
+// Lossless autosave to localStorage, keyed PER SHIP (each ship is an
+// independent workspace). A refresh is non-destructive even without a manual
+// JSON Save; the .json file (storage/jsonFile.ts) is the portable record.
+import type { ShipCode, VoyageMap } from '../types';
 
-const KEY = 'vt_speed_voyages_v6';
+const PREFIX = 'vt_speed_voyages_v6';
+
+function keyFor(ship: ShipCode): string {
+  return `${PREFIX}_${ship}`;
+}
 
 interface PersistShape {
   voyages: VoyageMap;
   selectedId: string;
 }
 
-export function loadPersisted(): PersistShape | null {
+export function loadPersisted(ship: ShipCode): PersistShape | null {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(keyFor(ship));
     if (!raw) return null;
     const saved = JSON.parse(raw);
     if (saved && saved.voyages) {
@@ -24,9 +28,9 @@ export function loadPersisted(): PersistShape | null {
   return null;
 }
 
-export function persist(voyages: VoyageMap, selectedId: string): void {
+export function persist(ship: ShipCode, voyages: VoyageMap, selectedId: string): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ voyages, selectedId }));
+    localStorage.setItem(keyFor(ship), JSON.stringify({ voyages, selectedId }));
   } catch {
     /* quota / private mode — non-fatal */
   }

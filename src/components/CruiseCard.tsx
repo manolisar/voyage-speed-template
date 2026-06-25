@@ -1,9 +1,9 @@
 // Cruise header card — title, date span + attribution + filename, status pill,
 // route chips (ports only), and duration summary.
-import type { Voyage } from '../types';
+import type { ShipCode, Voyage } from '../types';
 import { fmtDate, dayNum } from '../domain/time';
 
-export function CruiseCard({ voyage }: { voyage: Voyage | undefined }) {
+export function CruiseCard({ voyage, shipCode }: { voyage: Voyage | undefined; shipCode: ShipCode }) {
   if (!voyage) return null;
   const portLegs = voyage.legs.filter((l) => l.type === 'Port');
   const dates = voyage.legs.length
@@ -26,7 +26,10 @@ export function CruiseCard({ voyage }: { voyage: Voyage | undefined }) {
             {voyage.title}
           </div>
           <div className="mt-1.5 text-[0.7rem] tracking-[0.3px] text-muted">
-            {dates} · {voyage.loggedBy} · <span className="font-mono">EC_{voyage.id}_speed-template.json</span>
+            {dates} · {voyage.loggedBy} ·{' '}
+            <span className="font-mono">
+              {shipCode}_{voyage.id}_speed-template.json
+            </span>
           </div>
         </div>
         <span

@@ -2,7 +2,7 @@
 // Filtering/grouping ported from the design artifact's renderVals().
 import type { Filter, VoyageMap } from '../types';
 import { quarterFor } from '../domain/schedule';
-import { SearchIcon, CalendarIcon } from './Icons';
+import { SearchIcon, CalendarIcon, PlusIcon } from './Icons';
 
 interface Props {
   voyages: VoyageMap;
@@ -10,10 +10,12 @@ interface Props {
   filter: Filter;
   search: string;
   expandedQ: Record<string, boolean>;
+  canEdit: boolean;
   onSearch: (s: string) => void;
   onFilter: (f: Filter) => void;
   onSelect: (id: string) => void;
   onToggleQuarter: (qk: string) => void;
+  onNewVoyage: () => void;
 }
 
 const FILTERS: [Filter, string][] = [
@@ -29,10 +31,12 @@ export function Sidebar({
   filter,
   search,
   expandedQ,
+  canEdit,
   onSearch,
   onFilter,
   onSelect,
   onToggleQuarter,
+  onNewVoyage,
 }: Props) {
   const q = search.trim().toLowerCase();
   const ids = Object.keys(voyages).sort((a, b) => Number(a) - Number(b));
@@ -75,6 +79,17 @@ export function Sidebar({
         />
       </div>
 
+      {canEdit && (
+        <div className="border-b border-line px-3 py-2.5">
+          <button
+            onClick={onNewVoyage}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-cyan/40 bg-[rgba(6,182,212,0.08)] py-2 text-[0.72rem] font-bold uppercase tracking-[0.8px] text-cyan-deep hover:bg-[rgba(6,182,212,0.15)]"
+          >
+            <PlusIcon size={12} /> New Voyage
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1 border-b border-line px-3 py-2.5">
         {FILTERS.map(([k, label]) => {
           const on = filter === k;
@@ -96,6 +111,15 @@ export function Sidebar({
       </div>
 
       <div className="flex-1 p-1.5 text-[0.82rem]">
+        {order.length === 0 && (
+          <div className="px-3 py-8 text-center text-[0.74rem] leading-relaxed text-faint">
+            {Object.keys(voyages).length === 0
+              ? canEdit
+                ? 'No voyages yet for this ship. Use New Voyage to start one.'
+                : 'No voyages yet for this ship.'
+              : 'No voyages match this filter.'}
+          </div>
+        )}
         {order.map((qk) => {
           const open = expandedQ[qk] !== false;
           const rows = groups[qk];

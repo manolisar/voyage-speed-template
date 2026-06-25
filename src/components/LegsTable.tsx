@@ -6,8 +6,9 @@ import { PlusIcon } from './Icons';
 
 const COLUMNS: [string, string][] = [
   ['Type', 'center'], ['Date', 'left'], ['Location', 'left'], ['Dist', 'right'], ['Mode', 'center'],
-  ['Time', 'right'], ['Speed', 'right'], ['ETA', 'center'], ['Arr', 'center'], ['Dep', 'center'],
-  ['FAW', 'center'], ['St/By', 'center'], ['Port hrs', 'center'], ['Sunrise', 'center'], ['Sunset', 'center'],
+  ['Time', 'right'], ['Speed', 'right'], ['ETA', 'center'], ['Arr', 'center'], ['Dep', 'center'], ['FAW', 'center'],
+  ['Arr SB nm', 'center'], ['Arr SB', 'center'], ['Arr kn', 'center'], ['Dep SB nm', 'center'], ['Dep SB', 'center'], ['Dep kn', 'center'],
+  ['Port hrs', 'center'], ['Sunrise', 'center'], ['Sunset', 'center'],
   ['Daylight', 'center'], ['UTC ±', 'center'], ['Open Loop', 'center'], ['Sea Cond', 'center'], ['Remarks', 'left'], ['', 'center'],
 ];
 
@@ -63,7 +64,7 @@ export function LegsTable(props: Props) {
       </div>
 
       <div className="vt-scroll overflow-x-auto rounded-xl border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <table className="w-full min-w-[1880px] border-collapse text-[0.72rem]">
+        <table className="w-full min-w-[2280px] border-collapse text-[0.72rem]">
           <thead>
             <tr>
               {COLUMNS.map(([label, align], i) => (

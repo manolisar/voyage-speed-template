@@ -1,6 +1,6 @@
 # Voyage Speed Tracker
 
-A static, single-page **speed & time planner** for **Celebrity Eclipse** (Solstice-class).
+A static, single-page **speed & time planner** for the **Solstice-class fleet** (5 ships).
 Each voyage is a list of legs (port calls, at-sea days, tender/anchorage calls); the app solves
 the **speed ↔ ETA/time** relationship over each passage using the time since the previous port's
 **FAW** (Full Away) and per-leg **UTC offsets**, so timezone changes across a crossing are exact.
@@ -10,30 +10,37 @@ that keeps its data in the browser and writes a plain **`.json`** file as the po
 
 ## Features
 
-- 21-column legs table with live, dependency-free calculations:
+- Live, dependency-free calculations per leg:
   - **SPD** mode — enter the times, the app computes **Speed** (kn).
   - **TIME** mode — enter a target **Speed**, the app computes the **ETA**.
-  - Per-leg **St/By**, **Port hours**, **Daylight** (sunset − sunrise), Open Loop / Sea Condition.
+  - **St/By split** — Arrival (`Arr − ETA`, pilot→berth) and Departure (`FAW − Dep`, berth→pilot)
+    maneuvering phases, each with a manual distance and a computed maneuvering **speed**.
+  - Per-leg **Port hours**, **Daylight** (sunset − sunrise), Open Loop / Sea Condition.
 - Seven summary cards (port calls, distance, average speed, steaming/St-By/port time, sea condition).
-- Voyages grouped by calendar quarter in the sidebar; search + active/ended/locked filters.
-- **Lock / Edit** workflow with a reason-logged **version history**.
+- **5 ships**, each an independent workspace (own voyages, own JSON, own localStorage).
+- Voyages grouped by calendar quarter in the sidebar; search + active/ended/locked filters; **New Voyage**.
+- **Lock / Edit** workflow with a reason-logged **version history**, stamped with the signed-in user.
 - **Save / Open `.json`** via the File System Access API (Chromium/Edge), with a download/upload
   fallback on other browsers. Work also autosaves to `localStorage` so a refresh is lossless.
-- **Export to Excel** (`.xlsx`) — this voyage or all voyages — preserving the original template
-  layout and **live** Time/Speed formulas + Σ TOTAL. No external libraries.
+- **Export to Excel** (`.xlsx`) — this voyage or all voyages — preserving the template layout and
+  **live** Time/Speed formulas + Σ TOTAL (including the St/By distance/speed columns). No libraries.
 
-## Access code
+## Sign-in — ship, role, then daily code
 
-The app opens behind a **daily password**: the steady keyword **`bridge`** followed by **today's
-date** in `YYYY-MM-DD`, read from the local machine clock.
+On launch you **identify** first: pick your ship (1 of 5 Solstice-class), enter your name, and pick
+your role. Then a **daily password** unlocks the app: the steady keyword **`bridge`** followed by
+**today's date** in `YYYY-MM-DD`, read from the local machine clock.
 
 > Example — on 25 Jun 2026 the password is `bridge2026-06-25`.
 
+**Roles:** Master, Staff Captain, Navigation Officer, and Chief Engineer may edit; **Bridge Officer
+is view-only**. Your name + role are stamped on every committed change.
+
 The code rolls over at local midnight. **This is a convenience gate, not real security** — the
-keyword is shared and the date is public, so anyone who knows the keyword can derive the day's
-code. Real access control onboard is the workstation itself (Windows lock screen / share ACL),
-exactly as in v8. No secret is stored; the check is a plain client-side string compare
-(`src/domain/password.ts`). If you need a genuine barrier, replace this with a real auth layer.
+keyword is shared, the date is public, and roles are self-selected with nothing verifying them. Real
+access control onboard is the workstation itself (Windows lock screen / share ACL), as in v8. No
+secret is stored; the password check is a plain client-side string compare (`src/domain/password.ts`).
+If you need a genuine barrier, replace these with a real auth layer.
 
 ## Tech stack
 

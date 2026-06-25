@@ -1,6 +1,6 @@
 # Voyage Speed Tracker — Project Charter
 
-> Speed & time planner for **Celebrity Eclipse** (Solstice-class). Rebuilt from a Claude Design
+> Speed & time planner for the **Solstice-class fleet** (5 ships). Rebuilt from a Claude Design
 > artifact (`Voyage Speed Tracker.dc.html`) into a production React/TS SPA. Same engineering
 > philosophy as `~/Projects/Voyage_Tracker_v8`: static, no backend, JSON is the record.
 
@@ -14,7 +14,13 @@ mid-crossing timezone change is exact. Two solve directions per port leg:
 - **SPD** mode — operator enters the times → Speed (kn) is computed.
 - **TIME** mode — operator enters a target Speed → ETA is computed.
 
-No backend, no database. Data autosaves to `localStorage` and is hand-off'd as a `.json` file.
+It also splits the maneuvering (**St/By**) phase per port call into **Arrival** (`Arr − ETA`,
+pilot→berth) and **Departure** (`FAW − Dep`, berth→pilot); each takes a manual distance and the app
+computes the slow maneuvering speed (distance ÷ that time).
+
+The app serves the **5 Solstice-class ships** — each is an independent workspace (own voyages, own
+JSON, own localStorage). No backend, no database. Data autosaves to per-ship `localStorage` and is
+hand-off'd as a `.json` file.
 
 ## 2. Tech stack
 
@@ -51,16 +57,26 @@ Port); `mode` ∈ `speed | time`. Times are `HH:MM` strings; `utc` is signed hou
 `ended`, `loggedBy`. The on-disk **Bundle** is `{ bundleVersion, app, exportedAt, selectedId,
 voyages }`; `parseBundle` also accepts a bare single-voyage JSON (permissive import, v8-style).
 
-## 5. Access model — daily password gate
+## 5. Access model — identify, then daily password, then role-gated edit
 
-`AuthGate` requires **`bridge` + today's local date (`YYYY-MM-DD`)**, e.g. `bridge2026-06-25`.
-Computed from the local clock in `domain/password.ts`, so it rolls over at local midnight. Unlock
-is stamped in `sessionStorage` keyed by the date (re-prompts across midnight).
+Two stages, in this order:
 
-**This is a convenience gate, not security** — the keyword is shared and the date is public.
-Real access control is the workstation (Windows lock / share ACL), same stance as v8's "Edit Mode
-is a guard, not a boundary." No secret is stored. If a real barrier is ever needed, replace this
-module; do not pretend the current gate is one.
+1. **Identify** (`LandingScreen` → `useSession`): pick ship (5 Solstice-class), enter name, pick
+   role. Persisted in `localStorage` (`vst_session`) so a known machine skips it on relaunch.
+2. **Daily password** (`AuthGate`): **`bridge` + today's local date (`YYYY-MM-DD`)**, e.g.
+   `bridge2026-06-25`. Computed from the local clock in `domain/password.ts`, rolls over at local
+   midnight, unlock stamped in `sessionStorage` keyed by the date.
+
+**Roles** (`domain/roles.ts`): Master, Staff Captain, Navigation Officer, Chief Engineer may
+unlock/edit; **Bridge Officer is view-only**. The role gates the Lock/Edit toggle, New Voyage, JSON
+Open, and all inputs (`editable = !locked && roleCanEdit`). Name + role are stamped into `loggedBy`
+on every committed change (lock/unlock/new voyage), so the on-disk record carries attribution.
+
+**Neither the password nor the role is real security** — the keyword is shared, the date is public,
+and roles are picked at the landing screen with nothing verifying them. They are workflow guards.
+Real access control is the workstation (Windows lock / share ACL), same stance as v8's "Edit Mode is
+a guard, not a boundary." No secret is stored. If a real barrier is ever needed, replace these
+modules; do not pretend the current gates are ones.
 
 ## 6. Conventions
 
@@ -69,6 +85,8 @@ module; do not pretend the current gate is one.
 - Visual target = the design artifact at 1380×900. Palette/fonts are theme tokens in
   `src/index.css`; use Tailwind utilities against them, with a few arbitrary pixel widths for the
   dense table.
-- Eclipse-only by design (no fleet selector). Legs are free-text ports (no catalog).
+- 5 Solstice-class ships (`domain/ships.ts`); each is an independent per-ship workspace. Eclipse
+  (EC) ships with the worked demo voyages; the other four start empty (crew creates via New Voyage).
+  Legs are free-text ports (no catalog).
 
 *Last updated: 2026-06-25.*

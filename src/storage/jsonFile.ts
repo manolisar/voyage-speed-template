@@ -4,9 +4,8 @@
 // so the operator picks a real file on the network share and re-saves in place.
 // Falls back to a download anchor / hidden file input on browsers without it
 // (Firefox, Safari), so the feature degrades instead of breaking.
-import type { Bundle } from '../types';
+import type { Bundle, ShipCode, VoyageMap } from '../types';
 import { buildBundle, parseBundle } from './bundle';
-import type { VoyageMap } from '../types';
 
 // Minimal typings for the File System Access API surface we use (avoids a
 // dependency on the full lib + keeps strict mode happy).
@@ -28,8 +27,8 @@ interface FSAccessWindow {
 
 const JSON_TYPES = [{ description: 'Voyage Speed Tracker JSON', accept: { 'application/json': ['.json'] } }];
 
-function suggestedName(): string {
-  return `EC_speed-template_${new Date().toISOString().slice(0, 10)}.json`;
+function suggestedName(ship: ShipCode): string {
+  return `${ship}_speed-template_${new Date().toISOString().slice(0, 10)}.json`;
 }
 
 export interface SaveResult {
@@ -38,14 +37,14 @@ export interface SaveResult {
 }
 
 /** Returns null if the user cancelled the native picker. */
-export async function saveJson(voyages: VoyageMap, selectedId: string): Promise<SaveResult | null> {
-  const bundle = buildBundle(voyages, selectedId);
+export async function saveJson(ship: ShipCode, voyages: VoyageMap, selectedId: string): Promise<SaveResult | null> {
+  const bundle = buildBundle(voyages, selectedId, ship);
   const text = JSON.stringify(bundle, null, 2);
   const w = window as unknown as FSAccessWindow;
 
   if (typeof w.showSaveFilePicker === 'function') {
     try {
-      const handle = await w.showSaveFilePicker({ suggestedName: suggestedName(), types: JSON_TYPES });
+      const handle = await w.showSaveFilePicker({ suggestedName: suggestedName(ship), types: JSON_TYPES });
       const writable = await handle.createWritable();
       await writable.write(text);
       await writable.close();
@@ -56,7 +55,7 @@ export async function saveJson(voyages: VoyageMap, selectedId: string): Promise<
       // fall through to download on any unexpected picker failure
     }
   }
-  return downloadJson(text, suggestedName());
+  return downloadJson(text, suggestedName(ship));
 }
 
 function downloadJson(text: string, filename: string): SaveResult {

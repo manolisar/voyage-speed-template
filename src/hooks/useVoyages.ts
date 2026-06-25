@@ -1,9 +1,12 @@
 // App state machine — voyages, selection, filters, lock/version workflow,
-// leg mutations, and JSON save/open. Ported from the design artifact's DCLogic
-// class into a single React hook so the components stay presentational.
+// leg mutations, and JSON save/open. Scoped to ONE ship (the component is
+// keyed by ship, so this hook re-initialises from that ship's storage on
+// switch). Edit rights come from the signed-in role; attribution (loggedBy)
+// comes from the session.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Filter, Leg, LegType, Voyage, VoyageMap } from '../types';
-import { seedVoyages, SEED_SELECTED_ID } from '../domain/seed';
+import type { Filter, Leg, LegType, Session, Voyage, VoyageMap } from '../types';
+import { seedForShip } from '../domain/seed';
+import { roleCanEdit, roleLabel } from '../domain/roles';
 import { loadPersisted, persist } from '../storage/persist';
 import { saveJson, openJson } from '../storage/jsonFile';
 
@@ -22,6 +25,8 @@ export interface VoyagesApi {
   selectedId: string;
   current: Voyage | undefined;
   editable: boolean;
+  canEdit: boolean; // role-level edit right (independent of per-voyage lock)
+  loggedBy: string;
   filter: Filter;
   search: string;
   showUnlock: boolean;
@@ -34,6 +39,7 @@ export interface VoyagesApi {
   setFilter: (f: Filter) => void;
   selectVoyage: (id: string) => void;
   toggleQuarter: (qk: string) => void;
+  createVoyage: () => void;
 
   updateLeg: (i: number, field: keyof Leg, val: string) => void;
   setMode: (i: number, mode: 'speed' | 'time') => void;
@@ -55,12 +61,16 @@ export interface VoyagesApi {
   doOpenJson: () => Promise<void>;
 }
 
-export function useVoyages(): VoyagesApi {
+export function useVoyages(session: Session): VoyagesApi {
+  const ship = session.ship;
+  const canEdit = roleCanEdit(session.role);
+  const loggedBy = `${session.name} · ${roleLabel(session.role)}`;
+
   const initial = useMemo(() => {
-    const p = loadPersisted();
-    if (p) return { voyages: p.voyages, selectedId: p.selectedId || SEED_SELECTED_ID };
-    return { voyages: seedVoyages(), selectedId: SEED_SELECTED_ID };
-  }, []);
+    const p = loadPersisted(ship);
+    if (p) return { voyages: p.voyages, selectedId: p.selectedId };
+    return seedForShip(ship);
+  }, [ship]);
 
   const [voyages, setVoyages] = useState<VoyageMap>(initial.voyages);
   const [selectedId, setSelectedId] = useState<string>(initial.selectedId);
@@ -73,13 +83,12 @@ export function useVoyages(): VoyagesApi {
   const [expandedQ, setExpandedQ] = useState<Record<string, boolean>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // autosave
   useEffect(() => {
-    persist(voyages, selectedId);
-  }, [voyages, selectedId]);
+    persist(ship, voyages, selectedId);
+  }, [ship, voyages, selectedId]);
 
   const current = voyages[selectedId];
-  const editable = !!current && !current.locked;
+  const editable = !!current && !current.locked && canEdit;
 
   const flash = useCallback((msg: string) => {
     setToast(msg);
@@ -87,7 +96,6 @@ export function useVoyages(): VoyagesApi {
     toastTimer.current = setTimeout(() => setToast(''), 2200);
   }, []);
 
-  // Immutable mutate of the selected voyage.
   const mutate = useCallback(
     (fn: (v: Voyage) => void) => {
       setVoyages((prev) => {
@@ -127,6 +135,8 @@ export function useVoyages(): VoyagesApi {
       utc: guessUtc(),
       openLoop: '',
       seaCond: '',
+      stbyArrDist: '',
+      stbyDepDist: '',
       remarks: '',
       speed: '',
     }),
@@ -211,31 +221,51 @@ export function useVoyages(): VoyagesApi {
     [editable, mutate],
   );
 
+  const createVoyage = useCallback(() => {
+    if (!canEdit) return;
+    setVoyages((prev) => {
+      const ids = Object.keys(prev).map(Number).filter((n) => !isNaN(n));
+      const nextId = String((ids.length ? Math.max(...ids) : 0) + 1);
+      const v: Voyage = {
+        id: nextId,
+        title: `Voyage ${nextId}`,
+        ended: false,
+        locked: false,
+        loggedBy,
+        legs: [],
+        versions: [{ action: 'Created', by: loggedBy, note: 'New voyage', at: nowStamp() }],
+      };
+      setSelectedId(nextId);
+      return { ...prev, [nextId]: v };
+    });
+    flash('New voyage created');
+  }, [canEdit, loggedBy, flash]);
+
   const toggleLock = useCallback(() => {
     const v = voyages[selectedId];
-    if (!v) return;
+    if (!v || !canEdit) return;
     if (v.locked) {
       setUnlockNote('');
       setShowUnlock(true);
     } else {
       mutate((vo) => {
         vo.locked = true;
-        vo.versions.push({ action: 'Locked', by: vo.loggedBy, note: 'Edits committed', at: nowStamp() });
+        vo.versions.push({ action: 'Locked', by: loggedBy, note: 'Edits committed', at: nowStamp() });
       });
       flash('Voyage locked');
     }
-  }, [voyages, selectedId, mutate, flash]);
+  }, [voyages, selectedId, canEdit, loggedBy, mutate, flash]);
 
   const confirmUnlock = useCallback(() => {
     const note = unlockNote.trim() || 'No reason given';
     mutate((vo) => {
       vo.locked = false;
-      vo.versions.push({ action: 'Unlocked', by: vo.loggedBy, note, at: nowStamp() });
+      vo.versions.push({ action: 'Unlocked', by: loggedBy, note, at: nowStamp() });
     });
     setShowUnlock(false);
     setUnlockNote('');
     flash('Unlocked — edit mode enabled');
-  }, [unlockNote, mutate, flash]);
+  }, [unlockNote, loggedBy, mutate, flash]);
 
   const cancelUnlock = useCallback(() => setShowUnlock(false), []);
 
@@ -246,12 +276,12 @@ export function useVoyages(): VoyagesApi {
 
   const doSaveJson = useCallback(async () => {
     try {
-      const res = await saveJson(voyages, selectedId);
+      const res = await saveJson(ship, voyages, selectedId);
       if (res) flash(`Saved · ${res.filename}`);
     } catch (e) {
       flash(`Save failed: ${(e as Error).message}`);
     }
-  }, [voyages, selectedId, flash]);
+  }, [ship, voyages, selectedId, flash]);
 
   const doOpenJson = useCallback(async () => {
     try {
@@ -270,6 +300,8 @@ export function useVoyages(): VoyagesApi {
     selectedId,
     current,
     editable,
+    canEdit,
+    loggedBy,
     filter,
     search,
     showUnlock,
@@ -281,6 +313,7 @@ export function useVoyages(): VoyagesApi {
     setFilter,
     selectVoyage,
     toggleQuarter,
+    createVoyage,
     updateLeg,
     setMode,
     toggleType,
@@ -296,5 +329,5 @@ export function useVoyages(): VoyagesApi {
     flash,
     doSaveJson,
     doOpenJson,
-  } as VoyagesApi;
+  };
 }

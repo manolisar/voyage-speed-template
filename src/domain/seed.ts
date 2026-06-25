@@ -3,7 +3,7 @@
 // Dec 2026), a partial 587 that demonstrates TIME mode, and generated 588–621
 // (titles cycling through route names, empty legs). Used as the first-run
 // fallback when localStorage is empty.
-import type { Leg, VoyageMap } from '../types';
+import type { Leg, ShipCode, VoyageMap } from '../types';
 
 const LB = 'M. Archontakis · Chief';
 
@@ -24,6 +24,8 @@ function leg(p: Partial<Leg>): Leg {
     utc: p.utc ?? '',
     openLoop: p.openLoop ?? '',
     seaCond: p.seaCond ?? '',
+    stbyArrDist: p.stbyArrDist ?? '',
+    stbyDepDist: p.stbyDepDist ?? '',
     remarks: p.remarks ?? '',
     speed: p.speed ?? '',
   };
@@ -33,8 +35,8 @@ const v586: Leg[] = [
   leg({ type: 'Port', date: '2026-12-22', port: 'Fort Lauderdale, Florida', dist: '', dep: '16:00', faw: '17:00', sunrise: '07:04', sunset: '17:33', utc: '-5', remarks: 'Embark' }),
   leg({ type: 'Sea', date: '2026-12-23', port: 'At Sea', dist: '35', utc: '-5', remarks: '1 hour forward @02:00' }),
   leg({ type: 'Sea', date: '2026-12-24', port: 'At Sea', dist: '29', utc: '-4' }),
-  leg({ type: 'Port', date: '2026-12-25', port: 'Basseterre, St. Kitts & Nevis', dist: '1130', eta: '08:00', arr: '09:00', dep: '18:00', faw: '19:00', sunrise: '06:33', sunset: '17:38', utc: '-4', seaCond: '60:00', openLoop: '58:00' }),
-  leg({ type: 'Port', date: '2026-12-26', port: 'Castries, St. Lucia', dist: '221', eta: '07:00', arr: '08:00', dep: '18:00', faw: '19:00', sunrise: '06:19', sunset: '17:38', utc: '-4', seaCond: '06:00', openLoop: '04:00' }),
+  leg({ type: 'Port', date: '2026-12-25', port: 'Basseterre, St. Kitts & Nevis', dist: '1130', eta: '08:00', arr: '09:00', dep: '18:00', faw: '19:00', sunrise: '06:33', sunset: '17:38', utc: '-4', seaCond: '60:00', openLoop: '58:00', stbyArrDist: '11', stbyDepDist: '9' }),
+  leg({ type: 'Port', date: '2026-12-26', port: 'Castries, St. Lucia', dist: '221', eta: '07:00', arr: '08:00', dep: '18:00', faw: '19:00', sunrise: '06:19', sunset: '17:38', utc: '-4', seaCond: '06:00', openLoop: '04:00', stbyArrDist: '8', stbyDepDist: '7' }),
   leg({ type: 'Port', date: '2026-12-27', port: 'Bridgetown, Barbados', dist: '110', eta: '07:00', arr: '08:00', dep: '18:00', faw: '19:00', sunrise: '06:18', sunset: '17:40', utc: '-4', seaCond: '08:00', openLoop: '06:30' }),
   leg({ type: 'Sea', date: '2026-12-28', port: 'At Sea', dist: '29', utc: '-4' }),
   leg({ type: 'Port', date: '2026-12-29', port: 'Willemstad, Curacao', dist: '560', eta: '07:00', arr: '08:00', dep: '20:00', faw: '21:00', sunrise: '06:55', sunset: '18:20', utc: '-4', seaCond: '30:00', openLoop: '26:00' }),
@@ -104,3 +106,13 @@ export function seedVoyages(): VoyageMap {
 }
 
 export const SEED_SELECTED_ID = '586';
+
+/**
+ * First-run dataset for a ship. Eclipse (EC) carries the worked demo voyages so
+ * the app shows real numbers out of the box; the other four ships start empty —
+ * their crews create voyages (stamped with their own identity) via New Voyage.
+ */
+export function seedForShip(code: ShipCode): { voyages: VoyageMap; selectedId: string } {
+  if (code === 'EC') return { voyages: seedVoyages(), selectedId: SEED_SELECTED_ID };
+  return { voyages: {}, selectedId: '' };
+}
