@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+/* ── Voyage Speed Tracker theme (CSS-first Tailwind v4) ──────────────────
+   Palette + fonts lifted verbatim from the Claude Design artifact so the
+   rebuild is visually 1:1. Tokens here become Tailwind utilities, e.g.
+   `bg-bg`, `text-ink`, `border-line`, `text-cyan`. */
+@theme {
+  --font-sans: 'Manrope', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  --color-bg: #fafbfd;
+  --color-surface: #ffffff;
+  --color-rail: #f3f5f9;
+  --color-ink: #1a2233;
+  --color-muted: #6b7b8f;
+  --color-faint: #b0bac6;
+  --color-line: #e5e9f0;
+
+  --color-cyan: #06b6d4;
+  --color-cyan-deep: #0891b2;
+  --color-sky: #0284c7;
+  --color-indigo: #6366f1;
+  --color-navy: #102a43;
+  --color-green: #059669;
+  --color-amber: #d97706;
+  --color-amber-btn: #f59e0b;
+  --color-orange: #ea580c;
+  --color-pink: #db2777;
+  --color-blue: #2563eb;
+
+  /* speed-band badges */
+  --color-spd-hi-fg: #b91c1c;
+  --color-spd-hi-bg: #fee2e2;
+  --color-spd-lo-fg: #c2410c;
+  --color-spd-lo-bg: #ffedd5;
+  --color-spd-ok-fg: #047857;
+  --color-spd-ok-bg: #ecfdf5;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+#root {
+  height: 100vh;
+}
+input,
+textarea,
+button {
+  font-family: inherit;
+}
+
+@keyframes vtSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes vtScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.vt-slide-up {
+  animation: vtSlideUp 0.3s ease;
+}
+.vt-scale-in {
+  animation: vtScaleIn 0.15s ease;
+}
+
+/* themed scrollbar (from the design) */
+.vt-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.vt-scroll::-webkit-scrollbar-thumb {
+  background: #cfd8e3;
+  border-radius: 8px;
+  border: 2px solid var(--color-bg);
+}
+.vt-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
