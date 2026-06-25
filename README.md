@@ -22,8 +22,10 @@ that keeps its data in the browser and writes a plain **`.json`** file as the po
 - **Lock / Edit** workflow with a reason-logged **version history**, stamped with the signed-in user.
 - **Save / Open `.json`** via the File System Access API (Chromium/Edge), with a download/upload
   fallback on other browsers. Work also autosaves to `localStorage` so a refresh is lossless.
-- **Export to Excel** (`.xlsx`) — this voyage or all voyages — preserving the template layout and
-  **live** Time/Speed formulas + Σ TOTAL (including the St/By distance/speed columns). No libraries.
+- **Excel round-trip** — **Import** the fleet's official Speed Templates `.xlsx` and **Export** back
+  in the exact same format and colours (navy title, red ETA/FAW, live Time/Speed formulas, Total
+  row, Speed > 20 highlight). One sheet per voyage; import detects the ship from the title. Excel
+  handling uses `exceljs`, lazy-loaded so it never weighs down the initial page.
 
 ## Sign-in — ship, role, then daily code
 
@@ -72,7 +74,7 @@ base means it runs from any path.
 ```
 src/
 ├── domain/        time, calculations (the solver), password, schedule, seed
-├── storage/       persist (localStorage), bundle (JSON shape), jsonFile (Save/Open), xlsx
+├── storage/       persist (localStorage), bundle (JSON shape), jsonFile (Save/Open), excel (xlsx I/O)
 ├── hooks/         useVoyages (state machine: mutations, lock/version, save/open)
 └── components/    AuthGate, Header, Sidebar, CruiseCard, SummaryCards, LegsTable/LegRow,
                    VersionHistory, MathExplainer, UnlockModal, Toast, Icons

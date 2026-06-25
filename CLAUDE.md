@@ -20,7 +20,8 @@ computes the slow maneuvering speed (distance ÷ that time).
 
 The app serves the **5 Solstice-class ships** — each is an independent workspace (own voyages, own
 JSON, own localStorage). No backend, no database. Data autosaves to per-ship `localStorage` and is
-hand-off'd as a `.json` file.
+hand-off'd as a `.json` file or as the fleet's official **Excel (.xlsx)** template (import + export,
+round-trip).
 
 ## 2. Tech stack
 
@@ -40,10 +41,10 @@ hand-off'd as a `.json` file.
     Locked by `calculations.test.ts`. Change numbers here, never in components.
   - `password.ts` — the daily gate (see §5).
   - `schedule.ts` — sidebar quarter grouping. `seed.ts` — first-run dataset (voyages 586–621).
-- **`src/storage/`** — `persist.ts` (localStorage autosave, key `vt_speed_voyages_v6`),
-  `bundle.ts` (JSON shape + validation, mirrors v8's `exportImport.ts`), `jsonFile.ts`
-  (File System Access API Save/Open + download/upload fallback), `xlsx.ts` (dependency-free
-  `.xlsx` writer with live formulas).
+- **`src/storage/`** — `persist.ts` (per-ship localStorage autosave, key
+  `vt_speed_voyages_v6_<SHIP>`), `bundle.ts` (JSON shape + validation, mirrors v8's
+  `exportImport.ts`), `jsonFile.ts` (File System Access API Save/Open + download/upload fallback),
+  `excel.ts` (Excel import + faithful styled export — see §7).
 - **`src/hooks/useVoyages.ts`** — the state machine: voyages map, selection, filters, leg
   mutations, lock/version workflow, toast, and JSON save/open. Components are presentational.
 - **`src/components/`** — `AuthGate` wraps everything; `App.tsx` composes Header + Sidebar + main
@@ -88,5 +89,30 @@ modules; do not pretend the current gates are ones.
 - 5 Solstice-class ships (`domain/ships.ts`); each is an independent per-ship workspace. Eclipse
   (EC) ships with the worked demo voyages; the other four start empty (crew creates via New Voyage).
   Legs are free-text ports (no catalog).
+
+## 7. Excel round-trip (`src/storage/excel.ts`)
+
+Imports and exports the fleet's official **Speed Templates** workbook 1:1 (layout, fonts, colours,
+formulas), using **`exceljs`** (lazy-loaded via dynamic `import()` so it stays out of the initial
+bundle — it ships as its own chunk).
+
+**Workbook = one sheet per voyage** (sheet name = voyage id). Per sheet: R1 ship name (navy
+`#002060` fill, white Arial 24), R5 start port, R6 date range, R7 headers, data rows from R8, then a
+`Total:` SUM row. Columns **A–P**: `Date`(weekday A + date B) · `Port` · `Type` (D=port, C=sea,
+T=tender) · `Distance` · `Time`(formula `=(24/24+H{r}-K{prevPort})+N-M/24`) · `Speed`(formula
+`=E/F/24`, `0.0`) · `ETA`(red) · `Arrival` · `Departure` · `FAW`(red) · `Sunrise` · `Sunset` ·
+`ZT`("UTC -5") · `Remarks` · `Open Loop Time` (**decimal hours**, e.g. 6.5 = 06:30). Embark/disembark
+rows are navy with white text; port-call names use Century Gothic; Speed has a conditional format
+`> 20 → light-red fill / dark-red text`.
+
+**Field mapping** is in `excel.ts` (`typeToCode`/`codeToType`, `utcToZT`/`ztToUtc`,
+`hoursToHHMM`/`hhmmToHours`). The Time/Speed formulas are written so Excel recomputes natively, and
+ignored on import (the app recomputes). **The template has no columns for St/By Arr/Dep distances or
+Sea Condition** — those are app-only fields, kept in the app + the `.json` record but intentionally
+NOT in the Excel file (the `.json` bundle is the lossless record; Excel is the official report).
+
+Import detects the ship from the title (e.g. "Celebrity Eclipse" → `EC`) and replaces that ship's
+voyages (confirm first), then switches to it (`App.tsx`). Round-trip is locked by
+`excel.test.ts` (build → parse).
 
 *Last updated: 2026-06-25.*

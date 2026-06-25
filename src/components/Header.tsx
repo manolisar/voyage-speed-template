@@ -1,6 +1,6 @@
 // Top bar — brand + ship, signed-in user, JSON Save/Open, XLSX export, Lock/Edit.
 import type { Ship } from '../types';
-import type { XlsxScope } from '../storage/xlsx';
+import type { XlsxScope } from '../storage/excel';
 import {
   CompassIcon,
   DownloadIcon,
@@ -24,6 +24,7 @@ interface Props {
   onExportXlsx: (scope: XlsxScope) => void;
   onSaveJson: () => void;
   onOpenJson: () => void;
+  onImportExcel: () => void;
   onToggleLock: () => void;
   onSignOut: () => void;
 }
@@ -40,6 +41,7 @@ export function Header({
   onExportXlsx,
   onSaveJson,
   onOpenJson,
+  onImportExcel,
   onToggleLock,
   onSignOut,
 }: Props) {
@@ -80,6 +82,11 @@ export function Header({
         {!canEdit ? 'VIEW ONLY · BRIDGE' : locked ? 'VIEW ONLY' : 'EDIT MODE'}
       </span>
 
+      {canEdit && (
+        <button onClick={onImportExcel} className={iconBtn} title="Import voyages from an Excel (.xlsx) template">
+          <FileIcon size={13} /> Import
+        </button>
+      )}
       {canEdit && (
         <button onClick={onOpenJson} className={iconBtn} title="Open a voyages .json file">
           <UploadIcon size={13} /> Open

@@ -9,6 +9,7 @@ import { seedForShip } from '../domain/seed';
 import { roleCanEdit, roleLabel } from '../domain/roles';
 import { loadPersisted, persist } from '../storage/persist';
 import { saveJson, openJson } from '../storage/jsonFile';
+import { exportExcel, type XlsxScope } from '../storage/excel';
 
 function nowStamp(): string {
   const d = new Date();
@@ -59,6 +60,7 @@ export interface VoyagesApi {
 
   doSaveJson: () => Promise<void>;
   doOpenJson: () => Promise<void>;
+  doExportExcel: (scope: XlsxScope) => Promise<void>;
 }
 
 export function useVoyages(session: Session): VoyagesApi {
@@ -86,6 +88,22 @@ export function useVoyages(session: Session): VoyagesApi {
   useEffect(() => {
     persist(ship, voyages, selectedId);
   }, [ship, voyages, selectedId]);
+
+  // One-shot toast handed across a remount (e.g. after an Excel import that
+  // switched ship). App stamps the message; we show it once on mount.
+  useEffect(() => {
+    try {
+      const f = sessionStorage.getItem('vst_flash');
+      if (f) {
+        sessionStorage.removeItem('vst_flash');
+        flash(f);
+      }
+    } catch {
+      /* ignore */
+    }
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const current = voyages[selectedId];
   const editable = !!current && !current.locked && canEdit;
@@ -295,6 +313,21 @@ export function useVoyages(session: Session): VoyagesApi {
     }
   }, [flash]);
 
+  const doExportExcel = useCallback(
+    async (scope: XlsxScope) => {
+      setExportMenu(false);
+      if (scope === 'current' && !current) return;
+      try {
+        flash('Building Excel…');
+        const filename = await exportExcel(ship, voyages, scope, selectedId);
+        flash(scope === 'all' ? `All voyages exported · ${filename}` : `Exported · ${filename}`);
+      } catch (e) {
+        flash(`Export failed: ${(e as Error).message}`);
+      }
+    },
+    [ship, voyages, selectedId, current, flash],
+  );
+
   return {
     voyages,
     selectedId,
@@ -329,5 +362,6 @@ export function useVoyages(session: Session): VoyagesApi {
     flash,
     doSaveJson,
     doOpenJson,
+    doExportExcel,
   };
 }
