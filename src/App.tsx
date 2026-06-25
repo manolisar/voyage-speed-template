@@ -105,13 +105,41 @@ function Workspace({
               </section>
             </div>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted">
-              <div className="text-[0.95rem] font-bold text-ink">No voyage selected</div>
-              <div className="text-[0.8rem]">
-                {v.canEdit
-                  ? 'Create a voyage with “New Voyage”, open a saved .json, or Import an Excel template.'
-                  : 'No voyages exist for this ship yet.'}
+            <div className="flex h-full flex-col items-center justify-center gap-5 px-6 text-center">
+              <div>
+                <div className="text-base font-bold text-ink">No voyages for {ship.name}</div>
+                <div className="mx-auto mt-1.5 max-w-md text-[0.8rem] leading-relaxed text-muted">
+                  Open a saved <span className="font-mono">.json</span> file to load voyages, or start a new
+                  one. You choose where to load from — and where to save — when prompted.
+                </div>
               </div>
+              {v.canEdit ? (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={v.doOpenJson}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 py-2 text-[0.8rem] font-semibold text-ink hover:bg-rail"
+                  >
+                    Open .json…
+                  </button>
+                  <button
+                    onClick={onImportExcel}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 py-2 text-[0.8rem] font-semibold text-ink hover:bg-rail"
+                  >
+                    Import Excel…
+                  </button>
+                  <button
+                    onClick={v.createVoyage}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-cyan px-3.5 py-2 text-[0.8rem] font-semibold text-white hover:brightness-95"
+                  >
+                    New voyage
+                  </button>
+                </div>
+              ) : (
+                <div className="max-w-md text-[0.8rem] text-muted">
+                  No voyages exist for this ship yet. A Master, Staff Captain, Navigation Officer, or Chief can
+                  load a <span className="font-mono">.json</span> file or create one.
+                </div>
+              )}
             </div>
           )}
         </main>

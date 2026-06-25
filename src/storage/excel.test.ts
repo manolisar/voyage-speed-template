@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildWorkbook, parseWorkbook } from './excel';
-import { seedVoyages } from '../domain/seed';
+import { seedVoyages } from '../domain/sampleVoyages';
 
 async function buildThenParse() {
   const seed = seedVoyages();

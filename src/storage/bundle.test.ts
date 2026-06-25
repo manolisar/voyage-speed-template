@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildBundle, parseBundle, BUNDLE_VERSION } from './bundle';
-import { seedVoyages } from '../domain/seed';
+import { seedVoyages } from '../domain/sampleVoyages';
 
 const seed = seedVoyages();
 

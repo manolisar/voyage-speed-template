@@ -40,7 +40,8 @@ round-trip).
     truth for every displayed number.** Ported verbatim from the design artifact's `compute()`.
     Locked by `calculations.test.ts`. Change numbers here, never in components.
   - `password.ts` — the daily gate (see §5).
-  - `schedule.ts` — sidebar quarter grouping. `seed.ts` — first-run dataset (voyages 586–621).
+  - `schedule.ts` — sidebar quarter grouping. `seed.ts` — `seedForShip()` returns empty (the app
+    ships no demo data); `seedVoyages()` remains only as a unit-test fixture (tree-shaken from prod).
 - **`src/storage/`** — `persist.ts` (per-ship localStorage autosave, key
   `vt_speed_voyages_v6_<SHIP>`), `bundle.ts` (JSON shape + validation, mirrors v8's
   `exportImport.ts`), `jsonFile.ts` (File System Access API Save/Open + download/upload fallback),
@@ -86,9 +87,10 @@ modules; do not pretend the current gates are ones.
 - Visual target = the design artifact at 1380×900. Palette/fonts are theme tokens in
   `src/index.css`; use Tailwind utilities against them, with a few arbitrary pixel widths for the
   dense table.
-- 5 Solstice-class ships (`domain/ships.ts`); each is an independent per-ship workspace. Eclipse
-  (EC) ships with the worked demo voyages; the other four start empty (crew creates via New Voyage).
-  Legs are free-text ports (no catalog).
+- 5 Solstice-class ships (`domain/ships.ts`); each is an independent per-ship workspace. Every ship
+  starts **empty** — no bundled demo data. Crews load voyages from a `.json` file (Open), an Excel
+  import, or create them (New Voyage), choosing the file location when the picker prompts. Legs are
+  free-text ports (no catalog).
 
 ## 7. Excel round-trip (`src/storage/excel.ts`)
 

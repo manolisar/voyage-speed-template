@@ -71,7 +71,7 @@ export function useVoyages(session: Session): VoyagesApi {
   const initial = useMemo(() => {
     const p = loadPersisted(ship);
     if (p) return { voyages: p.voyages, selectedId: p.selectedId };
-    return seedForShip(ship);
+    return seedForShip();
   }, [ship]);
 
   const [voyages, setVoyages] = useState<VoyageMap>(initial.voyages);

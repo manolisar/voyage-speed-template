@@ -3,7 +3,9 @@
 // JSON Save; the .json file (storage/jsonFile.ts) is the portable record.
 import type { ShipCode, VoyageMap } from '../types';
 
-const PREFIX = 'vt_speed_voyages_v6';
+// v7: bumped when the bundled demo seed was removed so previously-seeded
+// caches don't resurrect the sample voyages. Each ship now starts empty.
+const PREFIX = 'vt_speed_voyages_v7';
 
 function keyFor(ship: ShipCode): string {
   return `${PREFIX}_${ship}`;

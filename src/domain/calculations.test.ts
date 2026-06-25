@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeVoyage } from './calculations';
-import { seedVoyages } from './seed';
+import { seedVoyages } from './sampleVoyages';
 
 const seed = seedVoyages();
 
