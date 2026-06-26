@@ -10,10 +10,12 @@ const TYPE_CHIP: Record<LegType, { label: string; bg: string; fg: string; bd: st
   Tender: { label: 'TENDER', bg: '#FFF7ED', fg: '#EA580C', bd: '#FED7AA', row: 'rgba(234,88,12,0.06)' },
 };
 
-const SPEED_COLORS: Record<SpeedBand, { fg: string; bg: string }> = {
-  hi: { fg: '#B91C1C', bg: '#FEE2E2' },
-  lo: { fg: '#C2410C', bg: '#FFEDD5' },
-  ok: { fg: '#047857', bg: '#ECFDF5' },
+// Speed-band text colours (no fill). Theme-aware via tokens so the digits stay
+// legible on light, parchment, and the dark console surface.
+const SPEED_VAR: Record<SpeedBand, string> = {
+  hi: 'var(--color-spd-hi-fg)',
+  lo: 'var(--color-spd-lo-fg)',
+  ok: 'var(--color-spd-ok-fg)',
 };
 
 const tdCls = 'border-b border-r border-line';
@@ -100,7 +102,12 @@ export function LegRow({
           disabled={readonly}
           aria-label={`Leg ${index + 1} type: ${chip.label}. Change type`}
           className="vt-unbutton rounded-[5px] border px-[7px] py-0.5 font-mono text-[0.58rem] font-extrabold tracking-[0.5px]"
-          style={{ background: chip.bg, color: chip.fg, borderColor: chip.bd, cursor: readonly ? 'default' : 'pointer' }}
+          style={{
+            background: 'transparent',
+            color: chip.fg,
+            borderColor: `color-mix(in srgb, ${chip.fg} 38%, transparent)`,
+            cursor: readonly ? 'default' : 'pointer',
+          }}
         >
           {chip.label}
         </button>
@@ -153,11 +160,8 @@ export function LegRow({
         {view.speedComputed ? (
           view.speedDisplay ? (
             <span
-              className="inline-block rounded-[5px] px-[7px] py-0.5 font-mono text-[0.74rem] font-extrabold"
-              style={{
-                color: SPEED_COLORS[view.speedBand ?? 'ok'].fg,
-                background: SPEED_COLORS[view.speedBand ?? 'ok'].bg,
-              }}
+              className="inline-block font-mono text-[0.74rem] font-extrabold"
+              style={{ color: SPEED_VAR[view.speedBand ?? 'ok'] }}
             >
               {view.speedDisplay}
             </span>

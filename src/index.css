@@ -67,6 +67,10 @@
   --color-faint: #6e8499;
   --color-line: #22384c;
   --color-btn-strong: #244763;
+  /* brighter speed-band text so the coloured digits read on the dark surface */
+  --color-spd-hi-fg: #f87171;
+  --color-spd-lo-fg: #fb923c;
+  --color-spd-ok-fg: #34d399;
 }
 
 * {
