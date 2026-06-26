@@ -95,33 +95,36 @@ export function Sidebar({
       </div>
 
       {/* toolbar */}
-      <div className="flex flex-shrink-0 items-center gap-1.5 px-3 py-2.5">
+      <div className="flex flex-shrink-0 flex-col gap-2 px-3 pb-2.5 pt-3">
         {canMutate && (
-          <>
+          <div className="flex items-stretch gap-2">
             <button
               onClick={onAddTemplate}
               disabled={!selectedFile}
               title={selectedFile ? `Add a template to ${selectedFile}` : 'Select a file first'}
-              className="vt-unbutton inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-cyan px-2 py-1.5 text-[0.68rem] font-bold uppercase tracking-[0.6px] text-white hover:brightness-95 disabled:opacity-40"
+              className="vt-unbutton inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-cyan px-3 py-2 text-[0.8rem] font-semibold text-white shadow-[0_1px_2px_rgba(6,182,212,0.25)] transition hover:brightness-105 disabled:opacity-40 disabled:shadow-none"
             >
-              <PlusIcon size={12} /> Add Template
+              <PlusIcon size={14} /> Add template
             </button>
             <button
               onClick={onNewFile}
               title="Create a new .json file in the folder"
-              className="vt-unbutton inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5 text-[0.68rem] font-bold uppercase tracking-[0.6px] text-ink hover:bg-rail"
+              className="vt-unbutton inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[0.8rem] font-semibold text-ink transition hover:border-cyan/40 hover:bg-rail"
             >
-              <FilePlusIcon size={13} /> .json
+              <FilePlusIcon size={14} /> New .json
             </button>
-          </>
+          </div>
         )}
-        <div className="ml-auto flex items-center gap-0.5">
-          <button onClick={onExpandAll} title="Expand all" aria-label="Expand all files" className={iconBtn}>
-            <ExpandIcon size={14} />
-          </button>
-          <button onClick={onCollapseAll} title="Collapse all" aria-label="Collapse all files" className={iconBtn}>
-            <CollapseIcon size={14} />
-          </button>
+        <div className="flex items-center justify-between">
+          <span className="text-[0.6rem] font-bold uppercase tracking-[1.1px] text-faint">Files</span>
+          <div className="flex items-center gap-0.5">
+            <button onClick={onExpandAll} title="Expand all" aria-label="Expand all files" className={iconBtn}>
+              <ExpandIcon size={14} />
+            </button>
+            <button onClick={onCollapseAll} title="Collapse all" aria-label="Collapse all files" className={iconBtn}>
+              <CollapseIcon size={14} />
+            </button>
+          </div>
         </div>
       </div>
 
