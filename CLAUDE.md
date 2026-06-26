@@ -109,8 +109,10 @@ modules; do not pretend the current gates are ones.
 ## 7. Excel round-trip (`src/storage/excel.ts`)
 
 Imports and exports the fleet's official **Speed Templates** workbook 1:1 (layout, fonts, colours,
-formulas), using **`exceljs`** (lazy-loaded via dynamic `import()` so it stays out of the initial
-bundle — it ships as its own chunk).
+formulas). **Write/export uses `exceljs`** (styled output); **read/import uses `SheetJS` (`xlsx`)** —
+exceljs's `xlsx.load` hangs in-browser under Vite, while SheetJS reads reliably. Both are lazy-loaded
+via dynamic `import()` (own chunks). `parseSheet` is a pure, bounded cell-accessor parser shared by
+the read path; `parseWorkbook` feeds it SheetJS cells.
 
 **Workbook = one sheet per voyage** (sheet name = voyage id). Per sheet: R1 ship name (navy
 `#002060` fill, white Arial 24), R5 start port, R6 date range, R7 headers, data rows from R8, then a
@@ -127,8 +129,8 @@ ignored on import (the app recomputes). **The template has no columns for St/By 
 Sea Condition** — those are app-only fields, kept in the app + the `.json` record but intentionally
 NOT in the Excel file (the `.json` bundle is the lossless record; Excel is the official report).
 
-Import detects the ship from the title (e.g. "Celebrity Eclipse" → `EC`) and replaces that ship's
-voyages (confirm first), then switches to it (`App.tsx`). Round-trip is locked by
-`excel.test.ts` (build → parse).
+Import detects the ship from the title (e.g. "Celebrity Eclipse" → `EC`) and writes the imported
+voyages as a **new `.json` file in the folder** (`useWorkspace.doImportExcel` → `createWorkspaceFile`),
+then selects it. Round-trip is locked by `excel.test.ts` (exceljs build → SheetJS parse).
 
-*Last updated: 2026-06-25.*
+*Last updated: 2026-06-26.*

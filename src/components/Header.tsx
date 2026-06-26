@@ -23,9 +23,11 @@ interface Props {
   shipId: string; // current file's ship (display)
   userLabel: string;
   canEdit: boolean;
+  canImport: boolean; // canEdit AND edit-authorised → Excel import allowed
   editing: boolean;
   voyageTotal: number; // voyages in the current file
   exportMenu: boolean;
+  onImportExcel: () => void;
   onToggleExportMenu: () => void;
   onCloseExportMenu: () => void;
   onExportXlsx: (scope: XlsxScope) => void;
@@ -43,9 +45,11 @@ export function Header({
   shipId,
   userLabel,
   canEdit,
+  canImport,
   editing,
   voyageTotal,
   exportMenu,
+  onImportExcel,
   onToggleExportMenu,
   onCloseExportMenu,
   onExportXlsx,
@@ -158,6 +162,11 @@ export function Header({
         {!canEdit ? 'VIEW ONLY · MARINE' : editing ? 'EDIT MODE' : 'VIEW ONLY'}
       </span>
 
+      {canImport && (
+        <button onClick={onImportExcel} className={iconBtn} title="Import an Excel (.xlsx) template as a new file in the folder">
+          <FileIcon size={13} /> Import
+        </button>
+      )}
       <button
         onClick={onSaveJson}
         className={iconBtn}

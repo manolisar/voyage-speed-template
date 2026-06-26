@@ -47,9 +47,11 @@ function Workspace({
         shipId={w.shipCode}
         userLabel={w.loggedBy}
         canEdit={w.canEdit}
+        canImport={w.canEdit && w.editAuthorized}
         editing={w.editable}
         voyageTotal={total}
         exportMenu={w.exportMenu}
+        onImportExcel={w.doImportExcel}
         onToggleExportMenu={() => w.setExportMenu(!w.exportMenu)}
         onCloseExportMenu={() => w.setExportMenu(false)}
         onExportXlsx={w.doExportExcel}
@@ -160,7 +162,14 @@ function SignedIn({
 }) {
   const w = useWorkspace(session);
   if (!w.dirName) {
-    return <FolderGate userLabel={`${session.name} · ${roleLabel(session.role)}`} onChoose={w.openFolder} />;
+    return (
+      <FolderGate
+        userLabel={`${session.name} · ${roleLabel(session.role)}`}
+        lastDirName={w.lastDirName}
+        onChoose={w.openFolder}
+        onReopen={w.reopenLast}
+      />
+    );
   }
   return <Workspace w={w} onSignOut={onSignOut} theme={theme} onSetTheme={onSetTheme} />;
 }

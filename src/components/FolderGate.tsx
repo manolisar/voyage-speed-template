@@ -4,7 +4,17 @@
 import { supportsFolders } from '../storage/workspace';
 import { FolderIcon } from './Icons';
 
-export function FolderGate({ userLabel, onChoose }: { userLabel: string; onChoose: () => void }) {
+export function FolderGate({
+  userLabel,
+  lastDirName,
+  onChoose,
+  onReopen,
+}: {
+  userLabel: string;
+  lastDirName: string;
+  onChoose: () => void;
+  onReopen: () => void;
+}) {
   const ok = supportsFolders();
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-navy p-4">
@@ -30,14 +40,30 @@ export function FolderGate({ userLabel, onChoose }: { userLabel: string; onChoos
             </div>
           )}
         </div>
-        <div className="flex justify-end border-t border-line px-5 py-3.5">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-line px-5 py-3.5">
+          {lastDirName && (
+            <button
+              type="button"
+              onClick={onReopen}
+              disabled={!ok}
+              title={`Reopen ${lastDirName}`}
+              className="inline-flex items-center gap-2 rounded-lg bg-cyan px-4 py-2 text-[0.8rem] font-semibold text-white hover:brightness-95 disabled:opacity-50"
+            >
+              <FolderIcon size={14} /> Reopen{' '}
+              <span className="max-w-[150px] truncate font-mono text-[0.72rem] opacity-90">{lastDirName}</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onChoose}
             disabled={!ok}
-            className="inline-flex items-center gap-2 rounded-lg bg-cyan px-4 py-2 text-[0.8rem] font-semibold text-white hover:brightness-95 disabled:opacity-50"
+            className={
+              lastDirName
+                ? 'inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-[0.8rem] font-semibold text-ink hover:bg-rail disabled:opacity-50'
+                : 'inline-flex items-center gap-2 rounded-lg bg-cyan px-4 py-2 text-[0.8rem] font-semibold text-white hover:brightness-95 disabled:opacity-50'
+            }
           >
-            <FolderIcon size={14} /> Choose folder…
+            <FolderIcon size={14} /> {lastDirName ? 'Choose another folder…' : 'Choose folder…'}
           </button>
         </div>
       </div>

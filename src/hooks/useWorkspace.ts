@@ -6,17 +6,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Leg, LegType, Session, Voyage } from '../types';
 import { roleCanEdit, roleLabel } from '../domain/roles';
 import { localDateKey } from '../domain/password';
-import { voyageStartDate } from '../domain/schedule';
+import { voyageStartDate, fileStartKey } from '../domain/schedule';
 import { isShipCode } from '../domain/ships';
 import {
   pickWorkspaceDir,
   readWorkspace,
   writeWorkspaceFile,
+  createWorkspaceFile,
   type WorkspaceFile,
   type WDirHandle,
   type WFileHandle,
+  type WorkspaceLoad,
 } from '../storage/workspace';
-import { exportExcel, type XlsxScope } from '../storage/excel';
+import { exportExcel, importExcel, type XlsxScope } from '../storage/excel';
+import { saveDirHandle, loadDirHandle } from '../storage/idbHandle';
 
 function nowStamp(): string {
   const d = new Date();
@@ -57,6 +60,7 @@ export interface PasteState {
 
 export interface WorkspaceApi {
   dirName: string;
+  lastDirName: string; // name of the remembered folder ('' if none) for "reopen"
   files: WorkspaceFile[];
   selectedFile: string;
   selectedId: string;
@@ -80,6 +84,8 @@ export interface WorkspaceApi {
   pasteState: PasteState | null;
 
   openFolder: () => Promise<void>;
+  reopenLast: () => Promise<void>;
+  doImportExcel: () => Promise<void>;
   setSearch: (s: string) => void;
   setExportMenu: (open: boolean) => void;
   flash: (msg: string) => void;
@@ -118,6 +124,7 @@ export function useWorkspace(session: Session): WorkspaceApi {
   const loggedBy = `${session.name} · ${roleLabel(session.role)}`;
 
   const [dirName, setDirName] = useState('');
+  const [lastDirName, setLastDirName] = useState('');
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
   const [selectedId, setSelectedId] = useState('');
@@ -133,6 +140,7 @@ export function useWorkspace(session: Session): WorkspaceApi {
   const [pasteState, setPasteState] = useState<PasteState | null>(null);
 
   const dirRef = useRef<WDirHandle | null>(null);
+  const lastHandleRef = useRef<WDirHandle | null>(null);
   const handlesRef = useRef<Map<string, WFileHandle>>(new Map());
   const filesRef = useRef<WorkspaceFile[]>(files);
   const dirtyRef = useRef<Set<string>>(new Set());
@@ -182,11 +190,20 @@ export function useWorkspace(session: Session): WorkspaceApi {
   );
 
   // ── Folder open ───────────────────────────────────────────────────────
-  const openFolder = useCallback(async () => {
-    try {
-      const dir = await pickWorkspaceDir();
-      if (!dir) return;
-      const load = await readWorkspace(dir);
+  // Offer "reopen last folder": the handle's .name reads without permission.
+  useEffect(() => {
+    loadDirHandle()
+      .then((h) => {
+        if (h) {
+          lastHandleRef.current = h;
+          setLastDirName(h.name);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const applyLoad = useCallback(
+    (load: WorkspaceLoad) => {
       dirRef.current = load.dir;
       handlesRef.current = load.handles;
       setDirName(load.dir.name);
@@ -195,12 +212,39 @@ export function useWorkspace(session: Session): WorkspaceApi {
       setSelectedFile(firstFile?.name ?? '');
       setSelectedId(firstFile?.selectedId ?? '');
       setExpanded(Object.fromEntries(load.files.map((f) => [f.name, true])));
+      void saveDirHandle(load.dir);
+      lastHandleRef.current = load.dir;
+      setLastDirName(load.dir.name);
       const okCount = load.files.filter((f) => !f.error).length;
       flash(`Loaded ${okCount} file(s) from ${load.dir.name}`);
+    },
+    [flash],
+  );
+
+  const openFolder = useCallback(async () => {
+    try {
+      const dir = await pickWorkspaceDir();
+      if (!dir) return;
+      applyLoad(await readWorkspace(dir));
     } catch (e) {
       flash(`Could not open folder: ${(e as Error).message}`);
     }
-  }, [flash]);
+  }, [applyLoad, flash]);
+
+  // Reopen the remembered folder — readWorkspace re-requests readwrite (one
+  // permission prompt) on this click. Falls back to the picker if it's gone.
+  const reopenLast = useCallback(async () => {
+    const h = lastHandleRef.current;
+    if (!h) {
+      await openFolder();
+      return;
+    }
+    try {
+      applyLoad(await readWorkspace(h));
+    } catch (e) {
+      flash(`Couldn’t reopen ${h.name}: ${(e as Error).message}. Choose the folder again.`);
+    }
+  }, [applyLoad, openFolder, flash]);
 
   // ── Derived ───────────────────────────────────────────────────────────
   const currentFile = useMemo(() => files.find((f) => f.name === selectedFile), [files, selectedFile]);
@@ -499,6 +543,40 @@ export function useWorkspace(session: Session): WorkspaceApi {
     flash(selectedFile ? `Saved · ${selectedFile}` : 'Nothing to save');
   }, [selectedFile, flushDirty, flash]);
 
+  // Import an .xlsx into the folder as a NEW .json file, then select it.
+  const doImportExcel = useCallback(async () => {
+    if (!canEdit || !editAuthorized || !dirRef.current) return;
+    try {
+      const res = await importExcel(loggedBy);
+      if (!res) return;
+      const ship = res.shipCode ?? '';
+      const base = `${ship || 'import'}_${new Date().toISOString().slice(0, 10)}`;
+      const existing = new Set(filesRef.current.map((f) => f.name));
+      const { handle, file } = await createWorkspaceFile(
+        dirRef.current,
+        base,
+        res.voyages,
+        res.selectedId,
+        ship,
+        existing,
+      );
+      handlesRef.current.set(file.name, handle);
+      setFiles((prev) =>
+        [...prev, file].sort((a, b) => {
+          const ka = fileStartKey(a.voyages);
+          const kb = fileStartKey(b.voyages);
+          return ka === kb ? a.name.localeCompare(b.name) : ka.localeCompare(kb);
+        }),
+      );
+      setSelectedFile(file.name);
+      setSelectedId(file.selectedId);
+      setExpanded((prev) => ({ ...prev, [file.name]: true }));
+      flash(`Imported ${Object.keys(res.voyages).length} voyage(s) → ${file.name}`);
+    } catch (e) {
+      flash(`Import failed: ${(e as Error).message}`);
+    }
+  }, [canEdit, editAuthorized, loggedBy, flash]);
+
   const doExportExcel = useCallback(
     async (scope: XlsxScope) => {
       setExportMenu(false);
@@ -517,6 +595,7 @@ export function useWorkspace(session: Session): WorkspaceApi {
 
   return {
     dirName,
+    lastDirName,
     files,
     selectedFile,
     selectedId,
@@ -537,6 +616,8 @@ export function useWorkspace(session: Session): WorkspaceApi {
     clipboardCount,
     pasteState,
     openFolder,
+    reopenLast,
+    doImportExcel,
     setSearch,
     setExportMenu,
     flash,

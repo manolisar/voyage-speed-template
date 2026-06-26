@@ -39,7 +39,9 @@ interface ExcelJSModule {
   Workbook: { new (): ExcelJS.Workbook };
 }
 
-/** Lazily load the exceljs runtime (code-split into its own chunk). */
+/** Lazily load the exceljs runtime (code-split into its own chunk). exceljs is
+ *  used only for the styled WRITE/export path — reads go through SheetJS, whose
+ *  xlsx reader is reliable in-browser (exceljs's xlsx.load hangs under Vite). */
 async function xlsxLib(): Promise<ExcelJSModule> {
   const mod = (await import('exceljs')) as unknown as { default?: ExcelJSModule } & ExcelJSModule;
   return mod.default ?? mod;
@@ -152,43 +154,53 @@ function cellNum(v: CellVal): number | null {
   return isNaN(n) ? null : n;
 }
 
-function parseSheet(ws: ExcelJS.Worksheet): Leg[] {
+// Library-agnostic sheet parser: `get(r, col)` returns the 1-based cell value
+// (A1 = (1,1)). Reused for the SheetJS read path; kept pure so it can't hang.
+function parseSheet(get: (r: number, col: number) => CellVal, lastRow: number): Leg[] {
   // Locate the header row (the one whose column C reads "Port").
   let headerRow = 7;
   for (let r = 1; r <= 15; r++) {
-    if (cellStr(ws.getCell(r, 3).value).toLowerCase() === 'port') {
+    if (cellStr(get(r, 3)).toLowerCase() === 'port') {
       headerRow = r;
       break;
     }
   }
   const legs: Leg[] = [];
-  for (let r = headerRow + 1; r <= ws.rowCount; r++) {
-    const cPort = cellStr(ws.getCell(r, 3).value);
-    const dType = cellStr(ws.getCell(r, 4).value);
+  // Bound the scan and bail after a run of blank rows — defensive against odd
+  // sheet dimensions so import can never spin.
+  const end = Math.min(lastRow, headerRow + 1000);
+  let blankRun = 0;
+  for (let r = headerRow + 1; r <= end; r++) {
+    const cPort = cellStr(get(r, 3));
+    const dType = cellStr(get(r, 4));
     if (/^total/i.test(cPort)) break;
-    if (!cPort && !dType && !ws.getCell(r, 2).value) continue; // blank row
+    if (!cPort && !dType && !get(r, 2)) {
+      if (++blankRun > 50) break;
+      continue; // blank row
+    }
+    blankRun = 0;
     const type = codeToType(dType);
     const isPort = type === 'Port' || type === 'Tender';
-    const distNum = cellNum(ws.getCell(r, 5).value);
-    const olHours = cellNum(ws.getCell(r, 16).value);
+    const distNum = cellNum(get(r, 5));
+    const olHours = cellNum(get(r, 16));
     legs.push({
       type,
-      date: cellToISO(ws.getCell(r, 2).value) || cellToISO(ws.getCell(r, 1).value),
+      date: cellToISO(get(r, 2)) || cellToISO(get(r, 1)),
       port: cPort,
       dist: isPort && distNum != null ? String(distNum) : '',
       mode: 'speed',
-      eta: cellToHHMM(ws.getCell(r, 8).value),
-      arr: cellToHHMM(ws.getCell(r, 9).value),
-      dep: cellToHHMM(ws.getCell(r, 10).value),
-      faw: cellToHHMM(ws.getCell(r, 11).value),
-      sunrise: cellToHHMM(ws.getCell(r, 12).value),
-      sunset: cellToHHMM(ws.getCell(r, 13).value),
-      utc: ztToUtc(ws.getCell(r, 14).value),
+      eta: cellToHHMM(get(r, 8)),
+      arr: cellToHHMM(get(r, 9)),
+      dep: cellToHHMM(get(r, 10)),
+      faw: cellToHHMM(get(r, 11)),
+      sunrise: cellToHHMM(get(r, 12)),
+      sunset: cellToHHMM(get(r, 13)),
+      utc: ztToUtc(get(r, 14)),
       openLoop: olHours != null ? hoursToHHMM(olHours) : '',
       seaCond: '',
       stbyArrDist: '',
       stbyDepDist: '',
-      remarks: cellStr(ws.getCell(r, 15).value),
+      remarks: cellStr(get(r, 15)),
       speed: '',
     });
   }
@@ -196,27 +208,34 @@ function parseSheet(ws: ExcelJS.Worksheet): Leg[] {
 }
 
 export async function parseWorkbook(buf: ArrayBuffer, loggedBy: string): Promise<ImportResult> {
-  const XLSX = await xlsxLib();
-  const wb = new XLSX.Workbook();
-  await wb.xlsx.load(buf);
+  // SheetJS reads xlsx reliably in-browser (exceljs's xlsx.load hangs in Vite).
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
   const voyages: VoyageMap = {};
   let shipName = '';
-  wb.eachSheet((ws) => {
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    const get = (r: number, col: number): CellVal => {
+      const cell = ws[XLSX.utils.encode_cell({ r: r - 1, c: col - 1 })] as { v?: unknown } | undefined;
+      return (cell?.v ?? null) as CellVal;
+    };
     if (!shipName) {
-      const a1 = cellStr(ws.getCell('A1').value);
+      const a1 = cellStr(get(1, 1));
       if (a1) shipName = a1;
     }
-    const id = ws.name.trim();
+    const range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+    const lastRow = range ? range.e.r + 1 : 0;
+    const id = name.trim();
     voyages[id] = {
       id,
       title: `Voyage ${id}`,
       ended: false,
       locked: false,
       loggedBy,
-      legs: parseSheet(ws),
+      legs: parseSheet(get, lastRow),
       versions: [{ action: 'Imported', by: loggedBy, note: 'Imported from Excel', at: nowStamp() }],
     };
-  });
+  }
   const ids = Object.keys(voyages).sort((a, b) => Number(a) - Number(b));
   return { shipCode: matchShipName(shipName), shipName, voyages, selectedId: ids[0] ?? '' };
 }
