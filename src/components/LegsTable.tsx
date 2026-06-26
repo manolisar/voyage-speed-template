@@ -42,23 +42,30 @@ export function LegsTable(props: Props) {
   const headRowRef = useRef<HTMLTableRowElement>(null);
   const [lefts, setLefts] = useState<number[]>([]);
   useLayoutEffect(() => {
+    const row = headRowRef.current;
+    if (!row) return;
     const measure = () => {
-      const row = headRowRef.current;
-      if (!row) return;
       const cells = Array.from(row.children) as HTMLElement[];
       const next: number[] = [];
-      for (let i = 0; i < FROZEN && i < cells.length; i++) next.push(cells[i].offsetLeft);
+      // Normalise against the first cell so column 0 sticks at left:0 — offsetLeft
+      // is relative to the offsetParent, which isn't always the table's edge.
+      const base = cells[0]?.offsetLeft ?? 0;
+      for (let i = 0; i < FROZEN && i < cells.length; i++) next.push(Math.round(cells[i].offsetLeft - base));
+      // Returning `prev` unchanged bails React out — no re-render, no loop.
       setLefts((prev) => (prev.length === next.length && prev.every((v, k) => v === next[k]) ? prev : next));
     };
     measure();
+    // Observe the table (not the row) so column-width changes from cell content
+    // are caught; the dep on legs.length covers add/remove. The bailout above
+    // keeps this from looping when offsets are unchanged.
     const ro = new ResizeObserver(measure);
-    if (headRowRef.current) ro.observe(headRowRef.current);
+    ro.observe(row.closest('table') ?? row);
     window.addEventListener('resize', measure);
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', measure);
     };
-  });
+  }, [legs.length]);
 
   // Live fill-handle range (date drag). null when not dragging.
   const [fill, setFill] = useState<{ from: number; to: number } | null>(null);
