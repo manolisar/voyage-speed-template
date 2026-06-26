@@ -97,7 +97,7 @@ function Workspace({
       />
 
       <div className="flex min-h-0 flex-1">
-        <div style={{ width: sidebarW }} className="min-h-0 flex-shrink-0">
+        <div style={{ width: sidebarW }} className="flex min-h-0 flex-shrink-0 overflow-hidden">
           <Sidebar
             files={w.files}
             selectedFile={w.selectedFile}
@@ -149,6 +149,7 @@ function Workspace({
                 onInsert={w.insertLeg}
                 onDelete={w.deleteLeg}
                 onAdd={w.addLeg}
+                onFillDates={w.fillDownDates}
               />
               <section className="grid grid-cols-[1.4fr_1fr] gap-4">
                 <VersionHistory versions={w.current.versions} />

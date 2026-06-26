@@ -1,13 +1,17 @@
 // One leg row in the table. Reads raw values from the Leg and computed
 // display values from its LegView. Field/column set ported from the design.
-import type { ChangeEvent } from 'react';
+import { useState, type ChangeEvent, type CSSProperties, type PointerEvent } from 'react';
 import type { Leg, LegType } from '../types';
 import type { LegView, SpeedBand } from '../domain/calculations';
 
-const TYPE_CHIP: Record<LegType, { label: string; bg: string; fg: string; bd: string; row: string }> = {
-  Port: { label: 'PORT', bg: '#EFF6FF', fg: '#2563EB', bd: '#BFDBFE', row: 'var(--color-surface)' },
-  Sea: { label: 'SEA', bg: '#ECFEFF', fg: '#0891b2', bd: '#A5F3FC', row: 'rgba(2,132,199,0.05)' },
-  Tender: { label: 'TENDER', bg: '#FFF7ED', fg: '#EA580C', bd: '#FED7AA', row: 'rgba(234,88,12,0.06)' },
+// Columns 0..FROZEN-1 (Type … Speed) are frozen to the left when the table
+// scrolls horizontally; their left offsets are measured by LegsTable.
+const FROZEN = 7;
+
+const TYPE_CHIP: Record<LegType, { label: string; bg: string; fg: string; bd: string; row: string; solid: string }> = {
+  Port: { label: 'PORT', bg: '#EFF6FF', fg: '#2563EB', bd: '#BFDBFE', row: 'var(--color-surface)', solid: 'var(--color-surface)' },
+  Sea: { label: 'SEA', bg: '#ECFEFF', fg: '#0891b2', bd: '#A5F3FC', row: 'rgba(2,132,199,0.05)', solid: 'color-mix(in srgb, #0284C7 5%, var(--color-surface))' },
+  Tender: { label: 'TENDER', bg: '#FFF7ED', fg: '#EA580C', bd: '#FED7AA', row: 'rgba(234,88,12,0.06)', solid: 'color-mix(in srgb, #EA580C 6%, var(--color-surface))' },
 };
 
 // Speed-band warning colours. In-band speeds render in plain ink; only the
@@ -48,6 +52,8 @@ interface Props {
   view: LegView;
   index: number;
   readonly: boolean;
+  lefts: number[]; // measured left offsets for the frozen columns
+  fillActive: boolean; // this row is within an in-progress date fill range
   onField: (i: number, field: keyof Leg, val: string) => void;
   onMode: (i: number, mode: 'speed' | 'time') => void;
   onToggleType: (i: number) => void;
@@ -55,6 +61,8 @@ interface Props {
   onDown: (i: number) => void;
   onInsert: (i: number) => void;
   onDelete: (i: number) => void;
+  onFillPreview: (from: number, to: number) => void;
+  onFillCommit: (from: number, to: number) => void;
 }
 
 export function LegRow({
@@ -62,6 +70,8 @@ export function LegRow({
   view,
   index,
   readonly,
+  lefts,
+  fillActive,
   onField,
   onMode,
   onToggleType,
@@ -69,9 +79,49 @@ export function LegRow({
   onDown,
   onInsert,
   onDelete,
+  onFillPreview,
+  onFillCommit,
 }: Props) {
   const chip = TYPE_CHIP[leg.type];
   const set = (field: keyof Leg) => (e: ChangeEvent<HTMLInputElement>) => onField(index, field, e.target.value);
+
+  // Sticky style for the first FROZEN columns. `bg` keeps frozen cells opaque
+  // so scrolled columns don't bleed through their transparent row tint.
+  const frozen = (col: number, bg = chip.solid): CSSProperties | undefined =>
+    col < FROZEN ? { position: 'sticky', left: lefts[col] ?? 0, zIndex: 10, background: bg } : undefined;
+  const edge = (col: number) => (col === FROZEN - 1 ? ' vt-freeze-edge' : '');
+
+  // Excel-style fill handle: drag down from a date cell to write a +1-day
+  // series into the rows below. Tracks the pointer over rows by their
+  // data-leg-index, previews live, and commits on release.
+  const startFill = (e: PointerEvent) => {
+    if (readonly) return;
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'crosshair';
+    let target = index;
+    const move = (ev: globalThis.PointerEvent) => {
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      const tr = el?.closest('[data-leg-index]') as HTMLElement | null;
+      if (tr) {
+        const n = Number(tr.dataset.legIndex);
+        if (!Number.isNaN(n)) target = Math.max(index, n);
+      }
+      onFillPreview(index, target);
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      onFillPreview(-1, -1);
+      if (target > index) onFillCommit(index, target);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    onFillPreview(index, index);
+  };
 
   // Shared input renderer for the dense cells.
   const inp = (
@@ -93,10 +143,12 @@ export function LegRow({
     />
   );
 
+  const dateBg = fillActive ? 'color-mix(in srgb, var(--color-cyan) 16%, var(--color-surface))' : chip.solid;
+
   return (
-    <tr style={{ background: chip.row }}>
+    <tr data-leg-index={index} style={{ background: chip.row }}>
       {/* Type */}
-      <td className={`${tdCls} px-1.5 py-[3px] text-center`}>
+      <td className={`${tdCls} px-1.5 py-[3px] text-center${edge(0)}`} style={frozen(0)}>
         <button
           type="button"
           onClick={() => onToggleType(index)}
@@ -113,16 +165,28 @@ export function LegRow({
           {chip.label}
         </button>
       </td>
-      {/* Date */}
-      <td className={`${tdCls} px-1`}>{inp('date', { width: 96, placeholder: 'YYYY-MM-DD', mono: true })}</td>
+      {/* Date — with Excel-style fill handle */}
+      <td className={`${tdCls} relative px-1${edge(1)}`} style={frozen(1, dateBg)}>
+        {inp('date', { width: 96, placeholder: 'YYYY-MM-DD', mono: true })}
+        {!readonly && (
+          <span
+            role="button"
+            tabIndex={-1}
+            aria-label={`Fill dates below from leg ${index + 1}`}
+            title="Drag down to fill the dates below"
+            onPointerDown={startFill}
+            className="vt-fill-handle absolute bottom-[3px] right-[4px] h-[8px] w-[8px] cursor-crosshair rounded-[2px] border border-surface bg-cyan shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+          />
+        )}
+      </td>
       {/* Location */}
-      <td className={`${tdCls} px-1`}>{inp('port', { width: 158, weight: 600 })}</td>
+      <td className={`${tdCls} px-1${edge(2)}`} style={frozen(2)}>{inp('port', { width: 158, weight: 600 })}</td>
       {/* Dist */}
-      <td className={`${tdCls} px-1 text-right`}>
+      <td className={`${tdCls} px-1 text-right${edge(3)}`} style={frozen(3)}>
         {view.isPort ? inp('dist', { width: 62, align: 'right', mono: true }) : dash}
       </td>
       {/* Mode */}
-      <td className={`${tdCls} px-1 text-center`}>
+      <td className={`${tdCls} px-1 text-center${edge(4)}`} style={frozen(4)}>
         {view.isPort && (
           <span className="inline-flex overflow-hidden rounded-md border border-line" role="group" aria-label={`Leg ${index + 1} solve mode`}>
             <button
@@ -151,13 +215,13 @@ export function LegRow({
         )}
       </td>
       {/* Time (computed) */}
-      <td className={`${tdCls} px-1.5 text-right`}>
+      <td className={`${tdCls} px-1.5 text-right${edge(5)}`} style={frozen(5)}>
         <div className="font-mono text-[0.74rem] font-bold" style={{ color: view.timeComputed ? 'var(--color-ink)' : 'var(--color-faint)' }}>
           {view.timeDisplay}
         </div>
       </td>
       {/* Speed */}
-      <td className={`${tdCls} px-1 text-right`}>
+      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={frozen(6)}>
         {view.speedComputed ? (
           view.speedDisplay ? (
             <span
@@ -252,7 +316,9 @@ export function LegRow({
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('openLoop', { width: 58, placeholder: 'HH:mm', align: 'center', mono: true, color: '#0284C7' }) : dash}</td>
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('seaCond', { width: 58, placeholder: 'HH:mm', align: 'center', mono: true, color: '#6366F1' }) : dash}</td>
       {/* Remarks */}
-      <td className={`${tdCls} px-1`}>{inp('remarks', { width: 150, color: 'var(--color-muted)' })}</td>
+      <td className={`${tdCls} px-1`}>
+        <RemarksCell value={leg.remarks} readonly={readonly} index={index} onChange={(v) => onField(index, 'remarks', v)} />
+      </td>
       {/* Actions */}
       <td className="whitespace-nowrap border-b border-line px-1.5 py-[3px] text-center">
         <span className="inline-flex gap-0.5">
@@ -263,6 +329,65 @@ export function LegRow({
         </span>
       </td>
     </tr>
+  );
+}
+
+// Remarks cell: a full-width single-line input plus an expandable panel that
+// reveals the whole note in a wrapping textarea (long remarks no longer clip).
+function RemarksCell({
+  value,
+  readonly,
+  index,
+  onChange,
+}: {
+  value: string;
+  readonly: boolean;
+  index: number;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative flex items-center gap-1">
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={readonly}
+        aria-label={`Remarks, leg ${index + 1}`}
+        spellCheck={false}
+        placeholder="—"
+        className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-[3px] text-[0.72rem] text-muted outline-none focus:border-cyan focus:bg-surface hover:bg-rail"
+      />
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={`${open ? 'Collapse' : 'Expand'} remarks for leg ${index + 1}`}
+        title="Expand remarks"
+        className="vt-unbutton flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-faint hover:bg-rail hover:text-ink"
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.12s ease' }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="absolute right-0 top-full z-50 mt-1 w-[320px] rounded-lg border border-line bg-surface p-2 shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
+            <textarea
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={readonly}
+              rows={5}
+              autoFocus
+              spellCheck={false}
+              placeholder="Remarks…"
+              aria-label={`Full remarks for leg ${index + 1}`}
+              className="w-full resize-y whitespace-pre-wrap break-words rounded border border-line bg-bg px-2 py-1.5 text-[0.74rem] leading-relaxed text-ink outline-none focus:border-cyan"
+            />
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

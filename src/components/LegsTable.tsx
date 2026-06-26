@@ -1,8 +1,14 @@
-// Legs section — header (legend + add buttons) and the 21-column table.
+// Legs section — header (legend + add buttons) and the 25-column table. The
+// first FROZEN columns (Type … Speed) stick to the left on horizontal scroll;
+// their left offsets are measured from the rendered header so variable column
+// widths stay aligned.
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { Leg, LegType, Voyage } from '../types';
 import type { LegView } from '../domain/calculations';
 import { LegRow } from './LegRow';
 import { PlusIcon } from './Icons';
+
+const FROZEN = 7; // Type, Date, Location, Dist, Mode, Time, Speed
 
 const COLUMNS: [string, string][] = [
   ['Type', 'center'], ['Date', 'left'], ['Location', 'left'], ['Dist', 'right'], ['Mode', 'center'],
@@ -24,11 +30,43 @@ interface Props {
   onInsert: (i: number) => void;
   onDelete: (i: number) => void;
   onAdd: (type: LegType) => void;
+  onFillDates: (from: number, to: number) => void;
 }
 
 export function LegsTable(props: Props) {
-  const { voyage, legViews, readonly, onAdd } = props;
+  const { voyage, legViews, readonly, onAdd, onFillDates } = props;
   const legs = voyage?.legs ?? [];
+
+  // Measured left offset of each frozen header cell — fed back as `left` for
+  // the sticky frozen columns so they line up with their (variable) widths.
+  const headRowRef = useRef<HTMLTableRowElement>(null);
+  const [lefts, setLefts] = useState<number[]>([]);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const row = headRowRef.current;
+      if (!row) return;
+      const cells = Array.from(row.children) as HTMLElement[];
+      const next: number[] = [];
+      for (let i = 0; i < FROZEN && i < cells.length; i++) next.push(cells[i].offsetLeft);
+      setLefts((prev) => (prev.length === next.length && prev.every((v, k) => v === next[k]) ? prev : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (headRowRef.current) ro.observe(headRowRef.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  });
+
+  // Live fill-handle range (date drag). null when not dragging.
+  const [fill, setFill] = useState<{ from: number; to: number } | null>(null);
+  const onFillPreview = (from: number, to: number) => setFill(from < 0 ? null : { from, to });
+  const onFillCommit = (from: number, to: number) => {
+    setFill(null);
+    onFillDates(from, to);
+  };
 
   const addBtn = (label: string, type: LegType) => (
     <button
@@ -66,17 +104,25 @@ export function LegsTable(props: Props) {
       <div className="vt-scroll overflow-x-auto rounded-xl border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <table className="w-full min-w-[2280px] border-collapse text-[0.72rem]">
           <thead>
-            <tr>
-              {COLUMNS.map(([label, align], i) => (
-                <th
-                  key={i}
-                  scope="col"
-                  className="sticky top-0 whitespace-nowrap border-b border-r border-line bg-rail px-2 py-2 text-[0.5rem] font-bold uppercase tracking-[1.1px] text-faint"
-                  style={{ textAlign: align as 'left' | 'right' | 'center' }}
-                >
-                  {label}
-                </th>
-              ))}
+            <tr ref={headRowRef}>
+              {COLUMNS.map(([label, align], i) => {
+                const isFrozen = i < FROZEN;
+                return (
+                  <th
+                    key={i}
+                    scope="col"
+                    className={`sticky top-0 whitespace-nowrap border-b border-r border-line bg-rail px-2 py-2 text-[0.5rem] font-bold uppercase tracking-[1.1px] text-faint ${
+                      isFrozen ? 'z-30' : 'z-20'
+                    }${i === FROZEN - 1 ? ' vt-freeze-edge' : ''}`}
+                    style={{
+                      textAlign: align as 'left' | 'right' | 'center',
+                      ...(isFrozen ? { left: lefts[i] ?? 0 } : null),
+                    }}
+                  >
+                    {label}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -87,6 +133,8 @@ export function LegsTable(props: Props) {
                 view={legViews[i]}
                 index={i}
                 readonly={readonly}
+                lefts={lefts}
+                fillActive={!!fill && i > fill.from && i <= fill.to}
                 onField={props.onField}
                 onMode={props.onMode}
                 onToggleType={props.onToggleType}
@@ -94,6 +142,8 @@ export function LegsTable(props: Props) {
                 onDown={props.onDown}
                 onInsert={props.onInsert}
                 onDelete={props.onDelete}
+                onFillPreview={onFillPreview}
+                onFillCommit={onFillCommit}
               />
             ))}
           </tbody>

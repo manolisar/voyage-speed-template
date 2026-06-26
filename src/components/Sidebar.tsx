@@ -75,7 +75,7 @@ export function Sidebar({
     'vt-unbutton inline-flex h-7 w-7 items-center justify-center rounded-md text-muted hover:bg-rail hover:text-ink';
 
   return (
-    <aside className="flex min-h-0 flex-col bg-surface">
+    <aside className="flex min-h-0 w-full flex-col bg-surface">
       {/* search */}
       <div className="relative flex-shrink-0 px-3 pt-3">
         <span className="pointer-events-none absolute left-[22px] top-1/2 -translate-y-1/2 text-faint">

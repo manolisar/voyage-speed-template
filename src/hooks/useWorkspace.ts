@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Leg, LegType, Session, Voyage } from '../types';
 import { roleCanEdit, roleLabel } from '../domain/roles';
+import { dayNum } from '../domain/time';
 import { localDateKey } from '../domain/password';
 import { voyageStartDate, fileStartKey } from '../domain/schedule';
 import { isShipCode } from '../domain/ships';
@@ -99,6 +100,7 @@ export interface WorkspaceApi {
   setTitle: (title: string) => void;
 
   updateLeg: (i: number, field: keyof Leg, val: string) => void;
+  fillDownDates: (fromIndex: number, toIndex: number) => void;
   setMode: (i: number, mode: 'speed' | 'time') => void;
   toggleType: (i: number) => void;
   addLeg: (type: LegType) => void;
@@ -318,6 +320,27 @@ export function useWorkspace(session: Session): WorkspaceApi {
       });
     },
     [editable, mutate],
+  );
+  // Excel-style fill handle: take the date in row `fromIndex` and write a +1-day
+  // series into every row below it through `toIndex` (inclusive). No-op if the
+  // source date is blank/malformed.
+  const fillDownDates = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (!editable) return;
+      const base = dayNum(
+        currentFile?.voyages[selectedId]?.legs[fromIndex]?.date ?? '',
+      );
+      if (base == null || toIndex <= fromIndex) return;
+      mutate((v) => {
+        for (let i = fromIndex + 1; i <= toIndex; i++) {
+          if (!v.legs[i]) break;
+          v.legs[i].date = new Date((base + (i - fromIndex)) * 86400000)
+            .toISOString()
+            .slice(0, 10);
+        }
+      });
+    },
+    [editable, currentFile, selectedId, mutate],
   );
   const setMode = useCallback(
     (i: number, mode: 'speed' | 'time') => {
@@ -701,6 +724,7 @@ export function useWorkspace(session: Session): WorkspaceApi {
     deleteVoyage,
     setTitle,
     updateLeg,
+    fillDownDates,
     setMode,
     toggleType,
     addLeg,
