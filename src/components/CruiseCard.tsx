@@ -3,7 +3,17 @@
 import type { Voyage } from '../types';
 import { fmtDate, dayNum } from '../domain/time';
 
-export function CruiseCard({ voyage, fileName }: { voyage: Voyage | undefined; fileName: string }) {
+export function CruiseCard({
+  voyage,
+  fileName,
+  editable,
+  onTitle,
+}: {
+  voyage: Voyage | undefined;
+  fileName: string;
+  editable: boolean;
+  onTitle: (s: string) => void;
+}) {
   if (!voyage) return null;
   const portLegs = voyage.legs.filter((l) => l.type === 'Port');
   const dates = voyage.legs.length
@@ -21,11 +31,25 @@ export function CruiseCard({ voyage, fileName }: { voyage: Voyage | undefined; f
   return (
     <div className="rounded-xl border border-line bg-surface px-[1.3rem] py-[1.1rem] shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-[1.25rem] font-extrabold leading-tight tracking-[-0.3px]">
-            {voyage.title}
-          </div>
-          <div className="mt-1.5 text-[0.7rem] tracking-[0.3px] text-muted">
+        <div className="min-w-0 flex-1">
+          {editable ? (
+            <input
+              value={voyage.title}
+              onChange={(e) => onTitle(e.target.value)}
+              aria-label="Cruise name"
+              spellCheck={false}
+              placeholder="e.g. Norwegian Fjords"
+              className="w-full max-w-[26rem] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[1.25rem] font-extrabold leading-tight tracking-[-0.3px] text-ink outline-none transition-colors placeholder:font-bold placeholder:text-faint hover:bg-rail focus:border-cyan focus:bg-surface"
+            />
+          ) : (
+            <div
+              className="px-1.5 py-0.5 text-[1.25rem] font-extrabold leading-tight tracking-[-0.3px]"
+              style={{ color: voyage.title ? 'var(--color-ink)' : 'var(--color-faint)', fontStyle: voyage.title ? 'normal' : 'italic' }}
+            >
+              {voyage.title || 'Untitled cruise'}
+            </div>
+          )}
+          <div className="mt-1.5 px-1.5 text-[0.7rem] tracking-[0.3px] text-muted">
             {dates} · {voyage.loggedBy} · <span className="font-mono">{fileName}</span>
           </div>
         </div>

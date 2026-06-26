@@ -91,7 +91,12 @@ export interface WorkspaceApi {
   flash: (msg: string) => void;
   selectVoyage: (file: string, id: string) => void;
   toggleFile: (file: string) => void;
+  expandAll: () => void;
+  collapseAll: () => void;
   createVoyage: () => void;
+  createFile: () => Promise<void>;
+  deleteVoyage: (file: string, id: string) => void;
+  setTitle: (title: string) => void;
 
   updateLeg: (i: number, field: keyof Leg, val: string) => void;
   setMode: (i: number, mode: 'speed' | 'time') => void;
@@ -385,12 +390,28 @@ export function useWorkspace(session: Session): WorkspaceApi {
   const toggleFile = useCallback((file: string) => {
     setExpanded((prev) => ({ ...prev, [file]: prev[file] === false }));
   }, []);
+  const expandAll = useCallback(() => {
+    setExpanded(Object.fromEntries(filesRef.current.map((f) => [f.name, true])));
+  }, []);
+  const collapseAll = useCallback(() => {
+    setExpanded(Object.fromEntries(filesRef.current.map((f) => [f.name, false])));
+  }, []);
+
+  // Chronological file order, reused after add/import so the tree stays sorted.
+  const sortFiles = (arr: WorkspaceFile[]): WorkspaceFile[] =>
+    [...arr].sort((a, b) => {
+      const ka = fileStartKey(a.voyages);
+      const kb = fileStartKey(b.voyages);
+      return ka === kb ? a.name.localeCompare(b.name) : ka.localeCompare(kb);
+    });
 
   const nextId = (voyages: Record<string, Voyage>): string => {
     const ids = Object.keys(voyages).map(Number).filter((n) => !isNaN(n));
     return String((ids.length ? Math.max(...ids) : 0) + 1);
   };
 
+  // Add a blank template (cruise) to the selected file. Title starts empty so
+  // the crew types the product name (e.g. "Norwegian Fjords").
   const createVoyage = useCallback(() => {
     if (!canEdit || !editAuthorized || !selectedFile) return;
     let newId = '';
@@ -401,20 +422,70 @@ export function useWorkspace(session: Session): WorkspaceApi {
         newId = nextId(voyages);
         voyages[newId] = {
           id: newId,
-          title: `Voyage ${newId}`,
+          title: '',
           ended: false,
           locked: false,
           loggedBy,
           legs: [],
-          versions: [{ action: 'Created', by: loggedBy, note: 'New voyage', at: nowStamp() }],
+          versions: [{ action: 'Created', by: loggedBy, note: 'New template', at: nowStamp() }],
         };
         return { ...f, voyages, selectedId: newId };
       }),
     );
     if (newId) setSelectedId(newId);
     markDirty(selectedFile);
-    flash('New voyage created');
+    flash('Template added');
   }, [canEdit, editAuthorized, selectedFile, loggedBy, markDirty, flash]);
+
+  // Create a brand-new empty .json file in the folder.
+  const createFile = useCallback(async () => {
+    if (!canEdit || !editAuthorized || !dirRef.current) return;
+    const raw = window.prompt('New file name (without .json):', 'templates');
+    if (raw === null) return;
+    const base = raw.trim() || 'templates';
+    try {
+      const existing = new Set(filesRef.current.map((f) => f.name));
+      const { handle, file } = await createWorkspaceFile(dirRef.current, base, {}, '', '', existing);
+      handlesRef.current.set(file.name, handle);
+      setFiles((prev) => sortFiles([...prev, file]));
+      setSelectedFile(file.name);
+      setSelectedId('');
+      setExpanded((prev) => ({ ...prev, [file.name]: true }));
+      flash(`Created ${file.name}`);
+    } catch (e) {
+      flash(`Couldn’t create file: ${(e as Error).message}`);
+    }
+  }, [canEdit, editAuthorized, flash]);
+
+  // Delete a cruise (template) from its file and write the file back.
+  const deleteVoyage = useCallback(
+    (fileName: string, id: string) => {
+      if (!canEdit || !editAuthorized) return;
+      const target = filesRef.current.find((f) => f.name === fileName);
+      if (!target || !target.voyages[id]) return;
+      const voyages = { ...target.voyages };
+      delete voyages[id];
+      const newSel = target.selectedId === id ? Object.keys(voyages)[0] ?? '' : target.selectedId;
+      const newFile: WorkspaceFile = { ...target, voyages, selectedId: newSel };
+      setFiles((prev) => prev.map((f) => (f.name === fileName ? newFile : f)));
+      if (selectedFile === fileName && selectedId === id) setSelectedId(newSel);
+      const handle = handlesRef.current.get(fileName);
+      if (handle) writeWorkspaceFile(handle, newFile).catch(() => markDirty(fileName));
+      flash('Cruise deleted');
+    },
+    [canEdit, editAuthorized, selectedFile, selectedId, markDirty, flash],
+  );
+
+  // Edit the current cruise's name (product name).
+  const setTitle = useCallback(
+    (title: string) => {
+      if (!editable) return;
+      mutate((v) => {
+        v.title = title;
+      });
+    },
+    [editable, mutate],
+  );
 
   // ── Lock / edit gate ──────────────────────────────────────────────────
   const toggleLock = useCallback(() => {
@@ -623,7 +694,12 @@ export function useWorkspace(session: Session): WorkspaceApi {
     flash,
     selectVoyage,
     toggleFile,
+    expandAll,
+    collapseAll,
     createVoyage,
+    createFile,
+    deleteVoyage,
+    setTitle,
     updateLeg,
     setMode,
     toggleType,

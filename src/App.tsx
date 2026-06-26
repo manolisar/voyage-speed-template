@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { Session } from './types';
 import { useSession } from './hooks/useSession';
 import { useTheme, type Theme } from './hooks/useTheme';
@@ -32,6 +33,38 @@ function Workspace({
   const { legViews, summary } = computeVoyage(w.current);
   const total = w.currentFile ? Object.keys(w.currentFile.voyages).length : 0;
 
+  // Resizable sidebar (drag the divider). Width persists across sessions.
+  const [sidebarW, setSidebarW] = useState<number>(() => {
+    const v = Number(localStorage.getItem('vst_sidebar_w'));
+    return v >= 240 && v <= 640 ? v : 320;
+  });
+  const dragging = useRef(false);
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!dragging.current) return;
+      setSidebarW(Math.min(640, Math.max(240, e.clientX)));
+    };
+    const onUp = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('vst_sidebar_w', String(sidebarW));
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarW]);
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden">
       <a href="#main-content" className="skip-link">
@@ -63,28 +96,46 @@ function Workspace({
         onSetTheme={onSetTheme}
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-[288px_1fr]">
-        <Sidebar
-          files={w.files}
-          selectedFile={w.selectedFile}
-          selectedId={w.selectedId}
-          search={w.search}
-          expanded={w.expanded}
-          canEdit={w.canEdit}
-          canMutate={w.canEdit && w.editAuthorized}
-          clipboardCount={w.clipboardCount}
-          onSearch={w.setSearch}
-          onSelect={w.selectVoyage}
-          onToggleFile={w.toggleFile}
-          onNewVoyage={w.createVoyage}
-          onCopyVoyage={w.copyVoyage}
-          onRequestPaste={w.requestPaste}
+      <div className="flex min-h-0 flex-1">
+        <div style={{ width: sidebarW }} className="min-h-0 flex-shrink-0">
+          <Sidebar
+            files={w.files}
+            selectedFile={w.selectedFile}
+            selectedId={w.selectedId}
+            search={w.search}
+            expanded={w.expanded}
+            canEdit={w.canEdit}
+            canMutate={w.canEdit && w.editAuthorized}
+            clipboardCount={w.clipboardCount}
+            onSearch={w.setSearch}
+            onSelect={w.selectVoyage}
+            onToggleFile={w.toggleFile}
+            onExpandAll={w.expandAll}
+            onCollapseAll={w.collapseAll}
+            onAddTemplate={w.createVoyage}
+            onNewFile={w.createFile}
+            onCopyVoyage={w.copyVoyage}
+            onRequestPaste={w.requestPaste}
+            onDeleteVoyage={w.deleteVoyage}
+          />
+        </div>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          onPointerDown={(e) => {
+            dragging.current = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+          }}
+          className="w-[5px] flex-shrink-0 cursor-col-resize border-l border-line bg-surface transition-colors hover:border-cyan hover:bg-[color-mix(in_srgb,var(--color-cyan)_18%,transparent)]"
         />
 
-        <main id="main-content" tabIndex={-1} className="vt-scroll overflow-auto bg-bg outline-none">
+        <main id="main-content" tabIndex={-1} className="vt-scroll min-w-0 flex-1 overflow-auto bg-bg outline-none">
           {w.current ? (
             <div className="flex min-w-[1180px] flex-col gap-5 px-6 py-6">
-              <CruiseCard voyage={w.current} fileName={w.selectedFile} />
+              <CruiseCard voyage={w.current} fileName={w.selectedFile} editable={w.editable} onTitle={w.setTitle} />
               <SummaryCards summary={summary} />
               <LegsTable
                 voyage={w.current}
@@ -107,12 +158,12 @@ function Workspace({
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
               <div className="text-base font-bold text-ink">
-                {w.files.length === 0 ? 'No files in this folder' : 'Select a voyage'}
+                {w.files.length === 0 ? 'No files in this folder' : 'Select a cruise'}
               </div>
               <div className="max-w-md text-[0.8rem] leading-relaxed text-muted">
                 {w.files.length === 0
                   ? 'This folder has no readable .json templates. Choose another folder from the header.'
-                  : 'Pick a voyage from the tree on the left to view or edit it.'}
+                  : 'Pick a cruise from the tree on the left, or use Add Template to start one.'}
               </div>
             </div>
           )}
