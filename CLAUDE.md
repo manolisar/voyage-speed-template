@@ -44,12 +44,15 @@ round-trip).
     ships no demo data); `seedVoyages()` remains only as a unit-test fixture (tree-shaken from prod).
 - **`src/storage/`** — `persist.ts` (per-ship localStorage autosave, key
   `vt_speed_voyages_v6_<SHIP>`), `bundle.ts` (JSON shape + validation, mirrors v8's
-  `exportImport.ts`), `jsonFile.ts` (File System Access API Save/Open + download/upload fallback),
+  `exportImport.ts`), `jsonFile.ts` (File System Access API Save/Open with **in-place save** — Open
+  retains the file handle, Save writes back to it with no dialog; `Save As…` rebinds; download/upload
+  fallback on Firefox/Safari where in-place isn't possible),
   `excel.ts` (Excel import + faithful styled export — see §7).
 - **`src/hooks/useVoyages.ts`** — the state machine: voyages map, selection, filters, leg
   mutations, lock/version workflow, toast, and JSON save/open. Components are presentational.
-- **`src/components/`** — `AuthGate` wraps everything; `App.tsx` composes Header + Sidebar + main
-  (CruiseCard, SummaryCards, LegsTable/LegRow, VersionHistory, MathExplainer) + UnlockModal + Toast.
+- **`src/components/`** — `App.tsx` composes Header + Sidebar + main (CruiseCard, SummaryCards,
+  LegsTable/LegRow, VersionHistory, MathExplainer) + `EditPasswordModal` (edit gate) + UnlockModal +
+  Toast. The app opens read-only; there is no entry gate (see §5).
 
 ## 4. Data model
 
@@ -59,20 +62,25 @@ Port); `mode` ∈ `speed | time`. Times are `HH:MM` strings; `utc` is signed hou
 `ended`, `loggedBy`. The on-disk **Bundle** is `{ bundleVersion, app, exportedAt, selectedId,
 voyages }`; `parseBundle` also accepts a bare single-voyage JSON (permissive import, v8-style).
 
-## 5. Access model — identify, then daily password, then role-gated edit
+## 5. Access model — identify, open read-only, password-on-edit
 
-Two stages, in this order:
+The app **opens in VIEW mode**. There is no entry password; the daily password is requested only
+when an allowed user enables editing.
 
 1. **Identify** (`LandingScreen` → `useSession`): pick ship (5 Solstice-class), enter name, pick
    role. Persisted in `localStorage` (`vst_session`) so a known machine skips it on relaunch.
-2. **Daily password** (`AuthGate`): **`bridge` + today's local date (`YYYY-MM-DD`)**, e.g.
-   `bridge2026-06-25`. Computed from the local clock in `domain/password.ts`, rolls over at local
-   midnight, unlock stamped in `sessionStorage` keyed by the date.
+2. **Enable Edit** (`EditPasswordModal`, wired in `useVoyages`): clicking *Enable Edit* prompts for
+   the **daily password** — **`bridge` + today's local date (`YYYY-MM-DD`)**, e.g. `bridge2026-06-25`
+   (`domain/password.ts`). On success the session is stamped edit-authorised in `sessionStorage`
+   (`vst_unlocked` = today's date), so it is asked at most once per day; it re-prompts after local
+   midnight. If the current voyage is locked, accepting the password also unlocks it (version note
+   "Edit enabled").
 
-**Roles** (`domain/roles.ts`): Master, Staff Captain, Navigation Officer, Chief Engineer may
-unlock/edit; **Bridge Officer is view-only**. The role gates the Lock/Edit toggle, New Voyage, JSON
-Open, and all inputs (`editable = !locked && roleCanEdit`). Name + role are stamped into `loggedBy`
-on every committed change (lock/unlock/new voyage), so the on-disk record carries attribution.
+**Roles** (`domain/roles.ts`): Admin, Master, Navigation Officer, Environmental Officer may
+unlock/edit; **Marine is view-only**. `editable = !locked && roleCanEdit && editAuthorized`. The role
+gates the Enable Edit/Lock toggle, New Voyage, JSON Open, and all inputs. Name + role are stamped
+into `loggedBy` on every committed change (lock/unlock/new voyage), so the on-disk record carries
+attribution.
 
 **Neither the password nor the role is real security** — the keyword is shared, the date is public,
 and roles are picked at the landing screen with nothing verifying them. They are workflow guards.

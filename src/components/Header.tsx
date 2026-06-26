@@ -20,13 +20,15 @@ interface Props {
   ship: Ship;
   userLabel: string; // "M. Archontakis · Navigation Officer"
   canEdit: boolean;
-  locked: boolean;
+  editing: boolean; // session edit-authorised AND current voyage unlocked
   voyageTotal: number;
   exportMenu: boolean;
   onToggleExportMenu: () => void;
   onCloseExportMenu: () => void;
   onExportXlsx: (scope: XlsxScope) => void;
   onSaveJson: () => void;
+  onSaveJsonAs: () => void;
+  boundFile: string; // bound .json name for in-place Save ('' if none)
   onOpenJson: () => void;
   onImportExcel: () => void;
   onToggleLock: () => void;
@@ -39,13 +41,15 @@ export function Header({
   ship,
   userLabel,
   canEdit,
-  locked,
+  editing,
   voyageTotal,
   exportMenu,
   onToggleExportMenu,
   onCloseExportMenu,
   onExportXlsx,
   onSaveJson,
+  onSaveJsonAs,
+  boundFile,
   onOpenJson,
   onImportExcel,
   onToggleLock,
@@ -142,12 +146,12 @@ export function Header({
       <span
         className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.62rem] font-bold tracking-[0.8px]"
         style={
-          !canEdit || locked
-            ? { background: 'var(--color-rail)', color: 'var(--color-muted)', borderColor: 'var(--color-line)' }
-            : { background: '#FFFBEB', color: '#D97706', borderColor: '#FDE68A' }
+          editing
+            ? { background: '#FFFBEB', color: '#D97706', borderColor: '#FDE68A' }
+            : { background: 'var(--color-rail)', color: 'var(--color-muted)', borderColor: 'var(--color-line)' }
         }
       >
-        {!canEdit ? 'VIEW ONLY · BRIDGE' : locked ? 'VIEW ONLY' : 'EDIT MODE'}
+        {!canEdit ? 'VIEW ONLY · MARINE' : editing ? 'EDIT MODE' : 'VIEW ONLY'}
       </span>
 
       {canEdit && (
@@ -160,9 +164,27 @@ export function Header({
           <UploadIcon size={13} /> Open
         </button>
       )}
-      <button onClick={onSaveJson} className={iconBtn} title="Save all voyages to a .json file">
+      <button
+        onClick={onSaveJson}
+        className={iconBtn}
+        title={boundFile ? `Save in place to ${boundFile}` : 'Save all voyages to a .json file…'}
+      >
         <SaveIcon size={13} /> Save
       </button>
+      {boundFile && (
+        <>
+          <button onClick={onSaveJsonAs} className={iconBtn} title="Save a copy to a new .json file">
+            Save As…
+          </button>
+          <span
+            className="hidden max-w-[150px] items-center gap-1 truncate font-mono text-[0.6rem] text-faint lg:inline-flex"
+            title={`Saving in place to ${boundFile}`}
+          >
+            <span aria-hidden="true">↳</span>
+            {boundFile}
+          </span>
+        </>
+      )}
 
       <div className="relative">
         <button
@@ -220,10 +242,10 @@ export function Header({
         <button
           onClick={onToggleLock}
           className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"
-          style={{ background: locked ? 'var(--color-amber-btn)' : 'var(--color-btn-strong)' }}
+          style={{ background: editing ? 'var(--color-btn-strong)' : 'var(--color-amber-btn)' }}
         >
-          <span className="inline-flex">{locked ? <EditIcon size={13} /> : <LockIcon size={13} />}</span>
-          {locked ? 'Enable Edit' : 'Lock Voyage'}
+          <span className="inline-flex">{editing ? <LockIcon size={13} /> : <EditIcon size={13} />}</span>
+          {editing ? 'Lock Voyage' : 'Enable Edit'}
         </button>
       )}
     </header>

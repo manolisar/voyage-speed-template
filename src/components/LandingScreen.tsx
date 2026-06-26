@@ -1,5 +1,6 @@
-// Identify step — pick ship, enter name, pick role. Runs BEFORE the daily
-// password (AuthGate). Stamps the session used for attribution + edit rights.
+// Identify step — pick ship, enter name, pick role. The app then opens in VIEW
+// mode; the daily password is requested only when editing is enabled. Stamps
+// the session used for attribution + edit rights.
 import { useRef, useState, type FormEvent } from 'react';
 import type { Role, Session, ShipCode } from '../types';
 import { SHIPS } from '../domain/ships';
@@ -131,8 +132,8 @@ export function LandingScreen({ initial, onDone }: { initial: Session | null; on
           </div>
 
           <div className="mt-3 text-[0.66rem] leading-relaxed text-muted">
-            Your name + role are stamped on every change you commit (attribution). Bridge Officer is view-only;
-            all other roles may edit. The next screen asks for today&rsquo;s access code.
+            Your name + role are stamped on every change you commit (attribution). Marine is view-only; all other
+            roles may edit. The app opens read-only — enabling edit asks for today&rsquo;s access code.
           </div>
         </div>
 

@@ -77,8 +77,8 @@ export interface Ship {
   built: number;
 }
 
-// Bridge/engine roles. `Bridge Officer` is view-only; everyone else may edit.
-export type Role = 'master' | 'staff' | 'navigation' | 'bridge' | 'chief';
+// Bridge/engine roles. `Marine` is view-only; everyone else may edit.
+export type Role = 'admin' | 'master' | 'navigation' | 'environmental' | 'marine';
 
 export interface Session {
   ship: ShipCode;

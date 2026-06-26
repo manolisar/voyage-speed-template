@@ -7,8 +7,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Filter, Leg, LegType, Session, Voyage, VoyageMap } from '../types';
 import { seedForShip } from '../domain/seed';
 import { roleCanEdit, roleLabel } from '../domain/roles';
+import { localDateKey } from '../domain/password';
 import { loadPersisted, persist } from '../storage/persist';
-import { saveJson, openJson } from '../storage/jsonFile';
+import { saveJsonAs, openJson, writeToHandle, WritePermissionError, type FileHandle } from '../storage/jsonFile';
 import { exportExcel, type XlsxScope } from '../storage/excel';
 
 function nowStamp(): string {
@@ -21,20 +22,35 @@ function nowStamp(): string {
 
 const TYPE_CYCLE: LegType[] = ['Port', 'Sea', 'Tender'];
 
+// Per-session edit authorisation. The app opens read-only; once the daily
+// password is accepted we stamp sessionStorage with today's date so editing is
+// re-prompted only after local midnight (or a fresh session).
+const EDIT_SS_KEY = 'vst_unlocked';
+function readEditAuth(): boolean {
+  try {
+    return sessionStorage.getItem(EDIT_SS_KEY) === localDateKey();
+  } catch {
+    return false;
+  }
+}
+
 export interface VoyagesApi {
   voyages: VoyageMap;
   selectedId: string;
   current: Voyage | undefined;
   editable: boolean;
   canEdit: boolean; // role-level edit right (independent of per-voyage lock)
+  editAuthorized: boolean; // daily password accepted this session
   loggedBy: string;
   filter: Filter;
   search: string;
+  showPassword: boolean; // edit-authorisation password dialog open
   showUnlock: boolean;
   unlockNote: string;
   toast: string;
   exportMenu: boolean;
   expandedQ: Record<string, boolean>;
+  boundFile: string; // name of the .json bound for in-place Save ('' if none)
 
   setSearch: (s: string) => void;
   setFilter: (f: Filter) => void;
@@ -51,6 +67,8 @@ export interface VoyagesApi {
   moveLeg: (i: number, dir: -1 | 1) => void;
 
   toggleLock: () => void;
+  confirmPassword: () => void;
+  cancelPassword: () => void;
   setUnlockNote: (s: string) => void;
   confirmUnlock: () => void;
   cancelUnlock: () => void;
@@ -59,6 +77,7 @@ export interface VoyagesApi {
   flash: (msg: string) => void;
 
   doSaveJson: () => Promise<void>;
+  doSaveAsJson: () => Promise<void>;
   doOpenJson: () => Promise<void>;
   doExportExcel: (scope: XlsxScope) => Promise<void>;
 }
@@ -78,12 +97,18 @@ export function useVoyages(session: Session): VoyagesApi {
   const [selectedId, setSelectedId] = useState<string>(initial.selectedId);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
+  const [editAuthorized, setEditAuthorized] = useState(readEditAuth);
+  const [showPassword, setShowPassword] = useState(false);
   const [showUnlock, setShowUnlock] = useState(false);
   const [unlockNote, setUnlockNote] = useState('');
   const [toast, setToast] = useState('');
   const [exportMenu, setExportMenu] = useState(false);
   const [expandedQ, setExpandedQ] = useState<Record<string, boolean>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // File bound for in-place Save (FS Access only). Held in memory for the
+  // session; resets when the hook remounts on ship switch (keyed by ship).
+  const fileHandleRef = useRef<FileHandle | null>(null);
+  const [boundFile, setBoundFile] = useState('');
 
   useEffect(() => {
     persist(ship, voyages, selectedId);
@@ -106,7 +131,7 @@ export function useVoyages(session: Session): VoyagesApi {
   }, []);
 
   const current = voyages[selectedId];
-  const editable = !!current && !current.locked && canEdit;
+  const editable = !!current && !current.locked && canEdit && editAuthorized;
 
   const flash = useCallback((msg: string) => {
     setToast(msg);
@@ -262,6 +287,11 @@ export function useVoyages(session: Session): VoyagesApi {
   const toggleLock = useCallback(() => {
     const v = voyages[selectedId];
     if (!v || !canEdit) return;
+    // View mode by default: editing needs the daily password once per session.
+    if (!editAuthorized) {
+      setShowPassword(true);
+      return;
+    }
     if (v.locked) {
       setUnlockNote('');
       setShowUnlock(true);
@@ -272,7 +302,29 @@ export function useVoyages(session: Session): VoyagesApi {
       });
       flash('Voyage locked');
     }
-  }, [voyages, selectedId, canEdit, loggedBy, mutate, flash]);
+  }, [voyages, selectedId, canEdit, editAuthorized, loggedBy, mutate, flash]);
+
+  // Daily password accepted → authorise editing for the session and, if the
+  // current voyage is locked, open it straight away so editing can begin.
+  const confirmPassword = useCallback(() => {
+    try {
+      sessionStorage.setItem(EDIT_SS_KEY, localDateKey());
+    } catch {
+      /* private mode — authorise for this render only */
+    }
+    setEditAuthorized(true);
+    setShowPassword(false);
+    const v = voyages[selectedId];
+    if (v && v.locked) {
+      mutate((vo) => {
+        vo.locked = false;
+        vo.versions.push({ action: 'Unlocked', by: loggedBy, note: 'Edit enabled', at: nowStamp() });
+      });
+    }
+    flash('Edit enabled');
+  }, [voyages, selectedId, loggedBy, mutate, flash]);
+
+  const cancelPassword = useCallback(() => setShowPassword(false), []);
 
   const confirmUnlock = useCallback(() => {
     const note = unlockNote.trim() || 'No reason given';
@@ -292,22 +344,51 @@ export function useVoyages(session: Session): VoyagesApi {
     setExpandedQ((prev) => ({ ...prev, [qk]: prev[qk] === false }));
   }, []);
 
-  const doSaveJson = useCallback(async () => {
+  // Save As — always pick a new location; bind the handle so later saves go in
+  // place. The download fallback (no FS Access) returns no handle.
+  const doSaveAsJson = useCallback(async () => {
     try {
-      const res = await saveJson(ship, voyages, selectedId);
-      if (res) flash(`Saved · ${res.filename}`);
+      const res = await saveJsonAs(ship, voyages, selectedId);
+      if (!res) return;
+      if (res.handle) {
+        fileHandleRef.current = res.handle;
+        setBoundFile(res.filename);
+      }
+      flash(`Saved · ${res.filename}`);
     } catch (e) {
       flash(`Save failed: ${(e as Error).message}`);
     }
   }, [ship, voyages, selectedId, flash]);
 
+  // Save — write straight back to the bound file with no dialog. Falls back to
+  // Save As when nothing is bound yet, or if write permission was revoked.
+  const doSaveJson = useCallback(async () => {
+    if (fileHandleRef.current) {
+      try {
+        const name = await writeToHandle(fileHandleRef.current, ship, voyages, selectedId);
+        flash(`Saved · ${name}`);
+        return;
+      } catch (e) {
+        if (!(e instanceof WritePermissionError)) {
+          flash(`Save failed: ${(e as Error).message}`);
+          return;
+        }
+        // permission revoked — fall through to Save As to rebind.
+      }
+    }
+    await doSaveAsJson();
+  }, [ship, voyages, selectedId, flash, doSaveAsJson]);
+
   const doOpenJson = useCallback(async () => {
     try {
-      const bundle = await openJson();
-      if (!bundle) return;
-      setVoyages(bundle.voyages);
-      setSelectedId(bundle.selectedId || Object.keys(bundle.voyages)[0] || '');
-      flash('Voyages loaded from file');
+      const res = await openJson();
+      if (!res) return;
+      setVoyages(res.bundle.voyages);
+      setSelectedId(res.bundle.selectedId || Object.keys(res.bundle.voyages)[0] || '');
+      // Bind the opened file so Save writes back in place (FS Access only).
+      fileHandleRef.current = res.handle;
+      setBoundFile(res.handle ? (res.filename ?? '') : '');
+      flash(res.handle ? `Opened · ${res.filename}` : 'Voyages loaded from file');
     } catch (e) {
       flash(`Open failed: ${(e as Error).message}`);
     }
@@ -334,14 +415,17 @@ export function useVoyages(session: Session): VoyagesApi {
     current,
     editable,
     canEdit,
+    editAuthorized,
     loggedBy,
     filter,
     search,
+    showPassword,
     showUnlock,
     unlockNote,
     toast,
     exportMenu,
     expandedQ,
+    boundFile,
     setSearch,
     setFilter,
     selectVoyage,
@@ -355,12 +439,15 @@ export function useVoyages(session: Session): VoyagesApi {
     deleteLeg,
     moveLeg,
     toggleLock,
+    confirmPassword,
+    cancelPassword,
     setUnlockNote,
     confirmUnlock,
     cancelUnlock,
     setExportMenu,
     flash,
     doSaveJson,
+    doSaveAsJson,
     doOpenJson,
     doExportExcel,
   };

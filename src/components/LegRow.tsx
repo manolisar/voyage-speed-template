@@ -10,8 +10,9 @@ const TYPE_CHIP: Record<LegType, { label: string; bg: string; fg: string; bd: st
   Tender: { label: 'TENDER', bg: '#FFF7ED', fg: '#EA580C', bd: '#FED7AA', row: 'rgba(234,88,12,0.06)' },
 };
 
-// Speed-band text colours (no fill). Theme-aware via tokens so the digits stay
-// legible on light, parchment, and the dark console surface.
+// Speed-band warning colours. In-band speeds render in plain ink; only the
+// out-of-range bands (hi/lo) get a colour + thin underline accent, so colour
+// means "attention" rather than decoration. Theme-aware via tokens.
 const SPEED_VAR: Record<SpeedBand, string> = {
   hi: 'var(--color-spd-hi-fg)',
   lo: 'var(--color-spd-lo-fg)',
@@ -161,7 +162,15 @@ export function LegRow({
           view.speedDisplay ? (
             <span
               className="inline-block font-mono text-[0.74rem] font-extrabold"
-              style={{ color: SPEED_VAR[view.speedBand ?? 'ok'] }}
+              style={
+                view.speedBand && view.speedBand !== 'ok'
+                  ? {
+                      color: SPEED_VAR[view.speedBand],
+                      borderBottom: `2px solid ${SPEED_VAR[view.speedBand]}`,
+                      paddingBottom: '1px',
+                    }
+                  : { color: 'var(--color-ink)' }
+              }
             >
               {view.speedDisplay}
             </span>

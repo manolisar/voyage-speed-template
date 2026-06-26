@@ -8,7 +8,6 @@ import { shipByCode } from './domain/ships';
 import { roleLabel } from './domain/roles';
 import { loadPersisted, persist } from './storage/persist';
 import { importExcel } from './storage/excel';
-import { AuthGate } from './components/AuthGate';
 import { LandingScreen } from './components/LandingScreen';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -18,6 +17,7 @@ import { LegsTable } from './components/LegsTable';
 import { VersionHistory } from './components/VersionHistory';
 import { MathExplainer } from './components/MathExplainer';
 import { UnlockModal } from './components/UnlockModal';
+import { EditPasswordModal } from './components/EditPasswordModal';
 import { Toast } from './components/Toast';
 
 function Workspace({
@@ -36,7 +36,6 @@ function Workspace({
   const v = useVoyages(session);
   const { legViews, summary } = computeVoyage(v.current);
   const ship = shipByCode(session.ship);
-  const locked = v.current ? v.current.locked : true;
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden">
@@ -51,13 +50,15 @@ function Workspace({
         ship={ship}
         userLabel={v.loggedBy}
         canEdit={v.canEdit}
-        locked={locked}
+        editing={v.editable}
         voyageTotal={Object.keys(v.voyages).length}
         exportMenu={v.exportMenu}
         onToggleExportMenu={() => v.setExportMenu(!v.exportMenu)}
         onCloseExportMenu={() => v.setExportMenu(false)}
         onExportXlsx={v.doExportExcel}
         onSaveJson={v.doSaveJson}
+        onSaveJsonAs={v.doSaveAsJson}
+        boundFile={v.boundFile}
         onOpenJson={v.doOpenJson}
         onImportExcel={onImportExcel}
         onToggleLock={v.toggleLock}
@@ -136,8 +137,8 @@ function Workspace({
                 </div>
               ) : (
                 <div className="max-w-md text-[0.8rem] text-muted">
-                  No voyages exist for this ship yet. A Master, Staff Captain, Navigation Officer, or Chief can
-                  load a <span className="font-mono">.json</span> file or create one.
+                  No voyages exist for this ship yet. An Admin, Master, Navigation Officer, or Environmental
+                  Officer can load a <span className="font-mono">.json</span> file or create one.
                 </div>
               )}
             </div>
@@ -145,6 +146,9 @@ function Workspace({
         </main>
       </div>
 
+      {v.showPassword && (
+        <EditPasswordModal loggedBy={v.loggedBy} onConfirm={v.confirmPassword} onCancel={v.cancelPassword} />
+      )}
       {v.showUnlock && (
         <UnlockModal
           loggedBy={v.loggedBy}
@@ -198,19 +202,18 @@ export default function App() {
     }
   }, [session, setSession]);
 
-  // Identify first (ship + name + role), THEN the daily password gate.
+  // Identify first (ship + name + role). The app then opens in VIEW mode; the
+  // daily password is requested only when an allowed user enables editing.
   if (!session) return <LandingScreen initial={null} onDone={setSession} />;
 
   return (
-    <AuthGate>
-      <Workspace
-        key={`${session.ship}:${reload}`}
-        session={session}
-        onSignOut={signOut}
-        onImportExcel={doImportExcel}
-        theme={theme}
-        onSetTheme={setTheme}
-      />
-    </AuthGate>
+    <Workspace
+      key={`${session.ship}:${reload}`}
+      session={session}
+      onSignOut={signOut}
+      onImportExcel={doImportExcel}
+      theme={theme}
+      onSetTheme={setTheme}
+    />
   );
 }

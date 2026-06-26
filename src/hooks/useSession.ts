@@ -1,6 +1,6 @@
 // Session = who is signed in (ship + name + role). Persisted to localStorage so
-// a known machine skips the identify step on relaunch; the daily password
-// (AuthGate) is a separate, per-day gate that still applies after identify.
+// a known machine skips the identify step on relaunch. The app opens read-only;
+// the daily password is a separate per-day gate, requested only when editing.
 import { useCallback, useState } from 'react';
 import type { Session } from '../types';
 import { isShipCode } from '../domain/ships';
