@@ -384,10 +384,12 @@ function RemarksCell({
 
   return (
     <div className="flex items-center gap-1">
+      {/* readOnly (not disabled) in view mode so the text stays full-contrast
+          and selectable — a disabled field greys it out and blocks copy. */}
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        disabled={readonly}
+        readOnly={readonly}
         aria-label={`Remarks, leg ${index + 1}`}
         spellCheck={false}
         placeholder="—"
@@ -418,7 +420,7 @@ function RemarksCell({
               <textarea
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                disabled={readonly}
+                readOnly={readonly}
                 rows={5}
                 autoFocus
                 spellCheck={false}
