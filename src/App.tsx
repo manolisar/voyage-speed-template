@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { Session } from './types';
 import { useSession } from './hooks/useSession';
-import { useTheme } from './hooks/useTheme';
+import { useTheme, type Theme } from './hooks/useTheme';
 import { useVoyages } from './hooks/useVoyages';
 import { computeVoyage } from './domain/calculations';
 import { shipByCode } from './domain/ships';
@@ -25,13 +25,13 @@ function Workspace({
   onSignOut,
   onImportExcel,
   theme,
-  onToggleTheme,
+  onSetTheme,
 }: {
   session: Session;
   onSignOut: () => void;
   onImportExcel: () => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
 }) {
   const v = useVoyages(session);
   const { legViews, summary } = computeVoyage(v.current);
@@ -63,7 +63,7 @@ function Workspace({
         onToggleLock={v.toggleLock}
         onSignOut={onSignOut}
         theme={theme}
-        onToggleTheme={onToggleTheme}
+        onSetTheme={onSetTheme}
       />
 
       <div className="grid min-h-0 flex-1 grid-cols-[288px_1fr]">
@@ -161,7 +161,7 @@ function Workspace({
 
 export default function App() {
   const { session, setSession, signOut } = useSession();
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   // Bumped to force the Workspace to re-read storage after a same-ship import.
   const [reload, setReload] = useState(0);
 
@@ -209,7 +209,7 @@ export default function App() {
         onSignOut={signOut}
         onImportExcel={doImportExcel}
         theme={theme}
-        onToggleTheme={toggleTheme}
+        onSetTheme={setTheme}
       />
     </AuthGate>
   );

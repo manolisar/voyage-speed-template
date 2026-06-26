@@ -194,7 +194,7 @@ export function LegRow({
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('faw', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true }) : dash}</td>
       {/* Arr St/By: distance · time · speed */}
       <td className={`${tdCls} px-1 text-center`}>
-        {view.isPort ? inp('stbyArrDist', { width: 46, align: 'right', mono: true }) : dash}
+        {view.isPort ? inp('stbyArrDist', { width: 46, align: 'center', mono: true }) : dash}
       </td>
       <td className={`${tdCls} px-1.5 text-center`}>
         <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyArrTime : '—'}</span>
@@ -208,7 +208,7 @@ export function LegRow({
       </td>
       {/* Dep St/By: distance · time · speed */}
       <td className={`${tdCls} px-1 text-center`}>
-        {view.isPort ? inp('stbyDepDist', { width: 46, align: 'right', mono: true }) : dash}
+        {view.isPort ? inp('stbyDepDist', { width: 46, align: 'center', mono: true }) : dash}
       </td>
       <td className={`${tdCls} px-1.5 text-center`}>
         <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyDepTime : '—'}</span>

@@ -1,8 +1,5 @@
 @import 'tailwindcss';
 
-/* Enable class-based dark mode (`.dark` on <html>). */
-@custom-variant dark (&:where(.dark, .dark *));
-
 /* ── Voyage Speed Tracker theme (CSS-first Tailwind v4) ──────────────────
    Palette + fonts lifted verbatim from the Claude Design artifact so the
    rebuild is visually 1:1. Tokens here become Tailwind utilities, e.g.
@@ -25,6 +22,8 @@
   --color-sky: #0284c7;
   --color-indigo: #6366f1;
   --color-navy: #102a43;
+  /* strong filled button (Lock Voyage) — overridden per theme for contrast */
+  --color-btn-strong: #102a43;
   --color-green: #059669;
   --color-amber: #d97706;
   --color-amber-btn: #f59e0b;
@@ -41,11 +40,25 @@
   --color-spd-ok-bg: #ecfdf5;
 }
 
-/* ── Dark theme — redefine the structural tokens so every token-based
-   utility (bg-surface, text-ink, border-line, …) flips automatically.
-   A deep-navy "bridge at night" palette; the saturated accent colours
-   (cyan, speed bands, the per-metric band hues) read on both. */
-:root.dark {
+/* ── Named themes — each redefines the structural tokens so every token-based
+   utility (bg-surface, text-ink, border-line, …) re-skins automatically. The
+   saturated accent colours (cyan, speed bands, per-metric band hues) read on
+   all three. "default" is the base @theme above (no data-theme attribute). */
+
+/* Admiralty Chart — warm parchment surfaces, ink-navy text, hairline rules. */
+:root[data-theme='admiralty'] {
+  --color-bg: #ece3cf;
+  --color-surface: #f7f1e1;
+  --color-rail: #e8dfc8;
+  --color-ink: #25303b;
+  --color-muted: #6c6553;
+  --color-faint: #847d69;
+  --color-line: #d7cbac;
+  --color-btn-strong: #2b3a30;
+}
+
+/* Bridge Console — deep-navy "bridge at night" with phosphor accents. */
+:root[data-theme='console'] {
   --color-bg: #0b1622;
   --color-surface: #10202f;
   --color-rail: #16283a;
@@ -53,6 +66,7 @@
   --color-muted: #9db0c4;
   --color-faint: #6e8499;
   --color-line: #22384c;
+  --color-btn-strong: #244763;
 }
 
 * {

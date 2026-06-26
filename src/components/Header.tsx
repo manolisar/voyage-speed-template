@@ -1,7 +1,8 @@
 // Top bar — brand + ship, signed-in user, JSON Save/Open, XLSX export, Lock/Edit.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Ship } from '../types';
 import type { XlsxScope } from '../storage/excel';
+import { THEMES, type Theme } from '../hooks/useTheme';
 import {
   CompassIcon,
   DownloadIcon,
@@ -11,8 +12,8 @@ import {
   UploadIcon,
   LockIcon,
   EditIcon,
-  SunIcon,
-  MoonIcon,
+  PaletteIcon,
+  CheckIcon,
 } from './Icons';
 
 interface Props {
@@ -30,8 +31,8 @@ interface Props {
   onImportExcel: () => void;
   onToggleLock: () => void;
   onSignOut: () => void;
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
 }
 
 export function Header({
@@ -50,7 +51,7 @@ export function Header({
   onToggleLock,
   onSignOut,
   theme,
-  onToggleTheme,
+  onSetTheme,
 }: Props) {
   const iconBtn =
     'inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[0.75rem] font-semibold text-ink hover:bg-rail';
@@ -58,6 +59,12 @@ export function Header({
   useEffect(() => {
     if (exportMenu) menuRef.current?.querySelector('button')?.focus();
   }, [exportMenu]);
+
+  const [themeMenu, setThemeMenu] = useState(false);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (themeMenu) themeMenuRef.current?.querySelector('button')?.focus();
+  }, [themeMenu]);
   return (
     <header className="z-[5] flex h-14 flex-shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
       <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-cyan text-white">
@@ -77,14 +84,56 @@ export function Header({
       {/* signed-in user + theme + sign out */}
       <div className="flex items-center gap-2">
         <span className="hidden text-[0.68rem] text-muted sm:inline">{userLabel}</span>
-        <button
-          onClick={onToggleTheme}
-          className={`${iconBtn} px-2`}
-          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
-        >
-          {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setThemeMenu((o) => !o)}
+            className={iconBtn}
+            aria-haspopup="menu"
+            aria-expanded={themeMenu}
+            title="Themes"
+          >
+            <PaletteIcon size={14} /> Themes <span className="text-[0.6rem] opacity-45">{themeMenu ? '▴' : '▾'}</span>
+          </button>
+          {themeMenu && (
+            <div className="fixed inset-0 z-40" onClick={() => setThemeMenu(false)}>
+              <div
+                ref={themeMenuRef}
+                role="menu"
+                aria-label="Select a theme"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setThemeMenu(false);
+                }}
+                className="vt-scale-in absolute right-0 top-[42px] min-w-[208px] overflow-hidden rounded-[10px] border border-line bg-surface p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.15)]"
+              >
+                {THEMES.map((t) => {
+                  const active = t.value === theme;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={active}
+                      onClick={() => {
+                        onSetTheme(t.value);
+                        setThemeMenu(false);
+                      }}
+                      className="vt-unbutton flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left hover:bg-rail"
+                    >
+                      <span className="inline-flex w-3.5 justify-center text-cyan-deep">
+                        {active ? <CheckIcon size={13} /> : null}
+                      </span>
+                      <span className="flex-1">
+                        <span className="block text-[0.78rem] font-semibold text-ink">{t.label}</span>
+                        <span className="block text-[0.62rem] text-muted">{t.hint}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
         <button onClick={onSignOut} className={iconBtn} title="Switch ship / sign out">
           <span aria-hidden="true">⇄</span> Switch
         </button>
@@ -170,9 +219,8 @@ export function Header({
       {canEdit && (
         <button
           onClick={onToggleLock}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95 ${
-            locked ? 'bg-amber-btn' : 'bg-navy dark:bg-[#244763]'
-          }`}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"
+          style={{ background: locked ? 'var(--color-amber-btn)' : 'var(--color-btn-strong)' }}
         >
           <span className="inline-flex">{locked ? <EditIcon size={13} /> : <LockIcon size={13} />}</span>
           {locked ? 'Enable Edit' : 'Lock Voyage'}
