@@ -1,6 +1,7 @@
 // One leg row in the table. Reads raw values from the Leg and computed
 // display values from its LegView. Field/column set ported from the design.
-import { useState, type ChangeEvent, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent } from 'react';
+import { createPortal } from 'react-dom';
 import type { Leg, LegType } from '../types';
 import type { LegView, SpeedBand } from '../domain/calculations';
 
@@ -345,9 +346,46 @@ function RemarksCell({
   index: number;
   onChange: (v: string) => void;
 }) {
+  const PANEL_W = 320;
+  const PANEL_H = 150;
+  const btnRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  // Position the portal panel relative to the toggle, flipping above the button
+  // when there isn't room below (keeps bottom rows from being clipped).
+  const place = () => {
+    const b = btnRef.current?.getBoundingClientRect();
+    if (!b) return;
+    const flipUp = b.bottom + PANEL_H + 8 > window.innerHeight;
+    const top = flipUp ? b.top - PANEL_H - 6 : b.bottom + 6;
+    const left = Math.max(8, Math.min(b.right - PANEL_W, window.innerWidth - PANEL_W - 8));
+    setPos({ left, top: Math.max(8, top) });
+  };
+
+  useLayoutEffect(() => {
+    if (open) place();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    // Re-place on viewport changes; close on any scroll (fixed panel would drift).
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   return (
-    <div className="relative flex items-center gap-1">
+    <div className="flex items-center gap-1">
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -358,6 +396,7 @@ function RemarksCell({
         className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-[3px] text-[0.72rem] text-muted outline-none focus:border-cyan focus:bg-surface hover:bg-rail"
       />
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -369,24 +408,30 @@ function RemarksCell({
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div className="absolute right-0 top-full z-50 mt-1 w-[320px] rounded-lg border border-line bg-surface p-2 shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
-            <textarea
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              disabled={readonly}
-              rows={5}
-              autoFocus
-              spellCheck={false}
-              placeholder="Remarks…"
-              aria-label={`Full remarks for leg ${index + 1}`}
-              className="w-full resize-y whitespace-pre-wrap break-words rounded border border-line bg-bg px-2 py-1.5 text-[0.74rem] leading-relaxed text-ink outline-none focus:border-cyan"
-            />
-          </div>
-        </>
-      )}
+      {open &&
+        pos &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[100]" onClick={() => setOpen(false)} aria-hidden="true" />
+            <div
+              className="fixed z-[101] rounded-lg border border-line bg-surface p-2 shadow-[0_8px_24px_rgba(15,23,42,0.18)]"
+              style={{ left: pos.left, top: pos.top, width: PANEL_W }}
+            >
+              <textarea
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                disabled={readonly}
+                rows={5}
+                autoFocus
+                spellCheck={false}
+                placeholder="Remarks…"
+                aria-label={`Full remarks for leg ${index + 1}`}
+                className="w-full resize-y whitespace-pre-wrap break-words rounded border border-line bg-bg px-2 py-1.5 text-[0.74rem] leading-relaxed text-ink outline-none focus:border-cyan"
+              />
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }
