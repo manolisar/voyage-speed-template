@@ -1,15 +1,16 @@
-// Top bar — brand + ship, signed-in user, JSON Save/Open, XLSX export, Lock/Edit.
+// Top bar — brand + folder, signed-in user, themes, Save (flush to folder),
+// XLSX export, and the Enable Edit / Lock toggle. The chosen folder is the live
+// record; Save flushes the current file's edits to disk immediately.
 import { useEffect, useRef, useState } from 'react';
-import type { Ship } from '../types';
 import type { XlsxScope } from '../storage/excel';
 import { THEMES, type Theme } from '../hooks/useTheme';
 import {
   CompassIcon,
   DownloadIcon,
   FileIcon,
+  FolderIcon,
   GridIcon,
   SaveIcon,
-  UploadIcon,
   LockIcon,
   EditIcon,
   PaletteIcon,
@@ -17,20 +18,19 @@ import {
 } from './Icons';
 
 interface Props {
-  ship: Ship;
-  userLabel: string; // "M. Archontakis · Navigation Officer"
+  dirName: string;
+  fileName: string; // current file ('' if none)
+  shipId: string; // current file's ship (display)
+  userLabel: string;
   canEdit: boolean;
-  editing: boolean; // session edit-authorised AND current voyage unlocked
-  voyageTotal: number;
+  editing: boolean;
+  voyageTotal: number; // voyages in the current file
   exportMenu: boolean;
   onToggleExportMenu: () => void;
   onCloseExportMenu: () => void;
   onExportXlsx: (scope: XlsxScope) => void;
   onSaveJson: () => void;
-  onSaveJsonAs: () => void;
-  boundFile: string; // bound .json name for in-place Save ('' if none)
-  onOpenJson: () => void;
-  onImportExcel: () => void;
+  onOpenFolder: () => void;
   onToggleLock: () => void;
   onSignOut: () => void;
   theme: Theme;
@@ -38,7 +38,9 @@ interface Props {
 }
 
 export function Header({
-  ship,
+  dirName,
+  fileName,
+  shipId,
   userLabel,
   canEdit,
   editing,
@@ -48,10 +50,7 @@ export function Header({
   onCloseExportMenu,
   onExportXlsx,
   onSaveJson,
-  onSaveJsonAs,
-  boundFile,
-  onOpenJson,
-  onImportExcel,
+  onOpenFolder,
   onToggleLock,
   onSignOut,
   theme,
@@ -69,25 +68,30 @@ export function Header({
   useEffect(() => {
     if (themeMenu) themeMenuRef.current?.querySelector('button')?.focus();
   }, [themeMenu]);
+
   return (
     <header className="z-[5] flex h-14 flex-shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
       <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-cyan text-white">
         <CompassIcon size={15} />
       </span>
-      <div>
-        <div className="text-[0.95rem] font-extrabold leading-tight tracking-[-0.2px]">
-          Voyage Speed Tracker <span className="font-medium opacity-65">— {ship.name}</span>
+      <div className="min-w-0">
+        <div className="truncate text-[0.95rem] font-extrabold leading-tight tracking-[-0.2px]">
+          Speed Templates{' '}
+          {fileName && <span className="font-medium opacity-65">— {fileName}</span>}
         </div>
-        <div className="font-mono text-[0.6rem] uppercase tracking-[1px] text-faint">
-          {ship.code} · {ship.built} · Speed &amp; Time Template
+        <div className="truncate font-mono text-[0.6rem] uppercase tracking-[1px] text-faint">
+          <FolderIcon size={9} /> {dirName || 'no folder'}
+          {shipId ? ` · ${shipId}` : ''}
         </div>
       </div>
 
       <div className="flex-1" />
 
-      {/* signed-in user + theme + sign out */}
       <div className="flex items-center gap-2">
         <span className="hidden text-[0.68rem] text-muted sm:inline">{userLabel}</span>
+        <button onClick={onOpenFolder} className={iconBtn} title="Choose a different folder">
+          <FolderIcon size={14} /> Folder
+        </button>
         <div className="relative">
           <button
             onClick={() => setThemeMenu((o) => !o)}
@@ -138,8 +142,8 @@ export function Header({
             </div>
           )}
         </div>
-        <button onClick={onSignOut} className={iconBtn} title="Switch ship / sign out">
-          <span aria-hidden="true">⇄</span> Switch
+        <button onClick={onSignOut} className={iconBtn} title="Sign out">
+          <span aria-hidden="true">⇄</span> Sign out
         </button>
       </div>
 
@@ -154,45 +158,17 @@ export function Header({
         {!canEdit ? 'VIEW ONLY · MARINE' : editing ? 'EDIT MODE' : 'VIEW ONLY'}
       </span>
 
-      {canEdit && (
-        <button onClick={onImportExcel} className={iconBtn} title="Import voyages from an Excel (.xlsx) template">
-          <FileIcon size={13} /> Import
-        </button>
-      )}
-      {canEdit && (
-        <button onClick={onOpenJson} className={iconBtn} title="Open a voyages .json file">
-          <UploadIcon size={13} /> Open
-        </button>
-      )}
       <button
         onClick={onSaveJson}
         className={iconBtn}
-        title={boundFile ? `Save in place to ${boundFile}` : 'Save all voyages to a .json file…'}
+        title={fileName ? `Save ${fileName} to the folder now` : 'Nothing to save'}
+        disabled={!fileName}
       >
         <SaveIcon size={13} /> Save
       </button>
-      {boundFile && (
-        <>
-          <button onClick={onSaveJsonAs} className={iconBtn} title="Save a copy to a new .json file">
-            Save As…
-          </button>
-          <span
-            className="hidden max-w-[150px] items-center gap-1 truncate font-mono text-[0.6rem] text-faint lg:inline-flex"
-            title={`Saving in place to ${boundFile}`}
-          >
-            <span aria-hidden="true">↳</span>
-            {boundFile}
-          </span>
-        </>
-      )}
 
       <div className="relative">
-        <button
-          onClick={onToggleExportMenu}
-          className={iconBtn}
-          aria-haspopup="menu"
-          aria-expanded={exportMenu}
-        >
+        <button onClick={onToggleExportMenu} className={iconBtn} aria-haspopup="menu" aria-expanded={exportMenu} disabled={!fileName}>
           <DownloadIcon size={13} /> Export <span className="text-[0.6rem] opacity-45">{exportMenu ? '▴' : '▾'}</span>
         </button>
         {exportMenu && (
@@ -230,7 +206,7 @@ export function Header({
                 <span className="inline-flex text-green">
                   <GridIcon size={14} />
                 </span>
-                All voyages
+                All voyages in file
                 <span className="ml-auto font-mono text-[0.6rem] text-faint">{voyageTotal}</span>
               </button>
             </div>
@@ -238,7 +214,7 @@ export function Header({
         )}
       </div>
 
-      {canEdit && (
+      {canEdit && fileName && (
         <button
           onClick={onToggleLock}
           className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"

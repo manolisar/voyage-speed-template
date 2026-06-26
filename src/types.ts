@@ -80,8 +80,9 @@ export interface Ship {
 // Bridge/engine roles. `Marine` is view-only; everyone else may edit.
 export type Role = 'admin' | 'master' | 'navigation' | 'environmental' | 'marine';
 
+// The signed-in operator. Ship is no longer part of identity — the chosen
+// folder drives all content; each .json carries its own shipId for display.
 export interface Session {
-  ship: ShipCode;
   name: string;
   role: Role;
 }

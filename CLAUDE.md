@@ -18,10 +18,14 @@ It also splits the maneuvering (**St/By**) phase per port call into **Arrival** 
 pilot→berth) and **Departure** (`FAW − Dep`, berth→pilot); each takes a manual distance and the app
 computes the slow maneuvering speed (distance ÷ that time).
 
-The app serves the **5 Solstice-class ships** — each is an independent workspace (own voyages, own
-JSON, own localStorage). No backend, no database. Data autosaves to per-ship `localStorage` and is
-hand-off'd as a `.json` file or as the fleet's official **Excel (.xlsx)** template (import + export,
-round-trip).
+**Folder-backed (the live record).** On sign-in the operator picks a **folder**; every `.json` in it
+is read and shown as a **file → voyages tree** (files chronological, voyages by start date). Edits,
+new voyages, and pasted voyages write **straight back** to the originating file in the folder (no
+backend, no database; localStorage holds only the lightweight session). Voyages can be **copied from
+one file and pasted into another**, renaming + re-dating on paste. The fleet's official **Excel
+(.xlsx)** template export remains. Each `.json` still carries a `shipId` (shown as a tag) — ship is no
+longer part of identity or a per-ship workspace boundary; the folder is. Chromium/Edge only (File
+System Access directory + file write).
 
 ## 2. Tech stack
 
@@ -42,14 +46,14 @@ round-trip).
   - `password.ts` — the daily gate (see §5).
   - `schedule.ts` — sidebar quarter grouping. `seed.ts` — `seedForShip()` returns empty (the app
     ships no demo data); `seedVoyages()` remains only as a unit-test fixture (tree-shaken from prod).
-- **`src/storage/`** — `persist.ts` (per-ship localStorage autosave, key
-  `vt_speed_voyages_v6_<SHIP>`), `bundle.ts` (JSON shape + validation, mirrors v8's
-  `exportImport.ts`), `jsonFile.ts` (File System Access API Save/Open with **in-place save** — Open
-  retains the file handle, Save writes back to it with no dialog; `Save As…` rebinds; download/upload
-  fallback on Firefox/Safari where in-place isn't possible),
-  `excel.ts` (Excel import + faithful styled export — see §7).
-- **`src/hooks/useVoyages.ts`** — the state machine: voyages map, selection, filters, leg
-  mutations, lock/version workflow, toast, and JSON save/open. Components are presentational.
+- **`src/storage/`** — `workspace.ts` (**folder layer**: `pickWorkspaceDir`, `readWorkspace` =
+  parse every `.json` sorted chronologically, `writeWorkspaceFile` = write a file's bundle back in
+  place, `createWorkspaceFile`), `bundle.ts` (JSON shape + validation, mirrors v8's `exportImport.ts`),
+  `excel.ts` (Excel export — see §7). `jsonFile.ts`/`persist.ts`/`seed.ts` are legacy single-file/
+  per-ship modules, no longer wired into the app (kept for reference/tests).
+- **`src/hooks/useWorkspace.ts`** — the state machine: dir handle + files, selection (file + voyage),
+  leg mutations, lock/version + daily-password edit gate, **cross-file copy/paste**, debounced
+  write-back to disk (~1s; `Save` flushes now), and Excel export. Components are presentational.
 - **`src/components/`** — `App.tsx` composes Header + Sidebar + main (CruiseCard, SummaryCards,
   LegsTable/LegRow, VersionHistory, MathExplainer) + `EditPasswordModal` (edit gate) + UnlockModal +
   Toast. The app opens read-only; there is no entry gate (see §5).
@@ -67,9 +71,11 @@ voyages }`; `parseBundle` also accepts a bare single-voyage JSON (permissive imp
 The app **opens in VIEW mode**. There is no entry password; the daily password is requested only
 when an allowed user enables editing.
 
-1. **Identify** (`LandingScreen` → `useSession`): pick ship (5 Solstice-class), enter name, pick
-   role. Persisted in `localStorage` (`vst_session`) so a known machine skips it on relaunch.
-2. **Enable Edit** (`EditPasswordModal`, wired in `useVoyages`): clicking *Enable Edit* prompts for
+1. **Identify** (`LandingScreen` → `useSession`): enter name + pick role (no ship). Persisted in
+   `localStorage` (`vst_session`).
+2. **Choose folder** (`FolderGate` → `useWorkspace.openFolder`): pick the folder of `.json` files —
+   the live record (§1).
+3. **Enable Edit** (`EditPasswordModal`, wired in `useWorkspace`): clicking *Enable Edit* prompts for
    the **daily password** — **`bridge` + today's local date (`YYYY-MM-DD`)**, e.g. `bridge2026-06-25`
    (`domain/password.ts`). On success the session is stamped edit-authorised in `sessionStorage`
    (`vst_unlocked` = today's date), so it is asked at most once per day; it re-prompts after local
@@ -95,10 +101,10 @@ modules; do not pretend the current gates are ones.
 - Visual target = the design artifact at 1380×900. Palette/fonts are theme tokens in
   `src/index.css`; use Tailwind utilities against them, with a few arbitrary pixel widths for the
   dense table.
-- 5 Solstice-class ships (`domain/ships.ts`); each is an independent per-ship workspace. Every ship
-  starts **empty** — no bundled demo data. Crews load voyages from a `.json` file (Open), an Excel
-  import, or create them (New Voyage), choosing the file location when the picker prompts. Legs are
-  free-text ports (no catalog).
+- Content comes from the chosen **folder** of `.json` files (§1) — one tree of files → voyages. Ships
+  (`domain/ships.ts`) survive only as a `shipId` tag per file + for Excel naming. Crews add voyages
+  with New Voyage (into the selected file) or by pasting a copy from another file. Legs are free-text
+  ports (no catalog).
 
 ## 7. Excel round-trip (`src/storage/excel.ts`)
 

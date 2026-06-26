@@ -133,6 +133,26 @@ export const MoonIcon = (p: IconProps) => (
   </svg>
 );
 
+export const FolderIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+  </svg>
+);
+
+export const CopyIcon = ({ size = 12, ...p }: IconProps) => (
+  <svg {...base({ size, ...p })}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+
+export const PasteIcon = ({ size = 12, ...p }: IconProps) => (
+  <svg {...base({ size, ...p })}>
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    <rect x="8" y="2" width="8" height="4" rx="1" />
+  </svg>
+);
+
 export const PaletteIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M12 3a9 9 0 0 0 0 18c1 0 1.6-.8 1.6-1.7 0-.4-.2-.8-.5-1.1-.3-.3-.4-.6-.4-1 0-.9.7-1.5 1.6-1.5H16a5 5 0 0 0 5-5c0-4.1-4-7.7-9-7.7z" />

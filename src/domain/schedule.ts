@@ -2,7 +2,22 @@
 // (design lines 531–550). Each voyage is placed in the calendar quarter that
 // holds the MIDPOINT of its date span; voyages with no dated legs fall onto a
 // synthetic rolling cursor seeded at the fleet schedule start.
-import type { VoyageMap } from '../types';
+import type { Voyage, VoyageMap } from '../types';
+
+/** Earliest dated leg of a voyage as 'YYYY-MM-DD', or '' if it has none. */
+export function voyageStartDate(vo: Voyage): string {
+  const dates = vo.legs.map((l) => l.date).filter(Boolean).sort();
+  return dates[0] ?? '';
+}
+
+/** Earliest start date across a file's voyages — the file's chronological key. */
+export function fileStartKey(voyages: VoyageMap): string {
+  const starts = Object.values(voyages)
+    .map(voyageStartDate)
+    .filter(Boolean)
+    .sort();
+  return starts[0] ?? '9999-12-31'; // undated files sort last
+}
 
 const DAY_MS = 86400000;
 const SCHEDULE_START = Date.parse('2026-12-22T00:00:00Z');

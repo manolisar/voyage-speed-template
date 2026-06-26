@@ -1,4 +1,4 @@
-# Voyage Speed Tracker
+# Speed Templates
 
 A static, single-page **speed & time planner** for the **Solstice-class fleet** (5 ships).
 Each voyage is a list of legs (port calls, at-sea days, tender/anchorage calls); the app solves

@@ -1,69 +1,52 @@
-// Left sidebar — search, filter pills, and voyages grouped by calendar quarter.
-// Filtering/grouping ported from the design artifact's renderVals().
-import type { Filter, VoyageMap } from '../types';
-import { quarterFor } from '../domain/schedule';
-import { SearchIcon, CalendarIcon, PlusIcon } from './Icons';
+// Left sidebar — search + a file → voyage tree. Each .json in the folder is a
+// top node; its voyages (sorted by start date) nest beneath. Copy a voyage and
+// paste it into another file (cross-file), or add a new voyage to a file.
+import type { WorkspaceFile } from '../storage/workspace';
+import { voyageStartDate } from '../domain/schedule';
+import { SearchIcon, PlusIcon, FileIcon, CopyIcon, PasteIcon } from './Icons';
 
 interface Props {
-  voyages: VoyageMap;
+  files: WorkspaceFile[];
+  selectedFile: string;
   selectedId: string;
-  filter: Filter;
   search: string;
-  expandedQ: Record<string, boolean>;
+  expanded: Record<string, boolean>;
   canEdit: boolean;
+  canMutate: boolean; // canEdit AND edit-authorised → New/Paste allowed
+  clipboardCount: number;
   onSearch: (s: string) => void;
-  onFilter: (f: Filter) => void;
-  onSelect: (id: string) => void;
-  onToggleQuarter: (qk: string) => void;
+  onSelect: (file: string, id: string) => void;
+  onToggleFile: (file: string) => void;
   onNewVoyage: () => void;
+  onCopyVoyage: (file: string, id: string) => void;
+  onRequestPaste: (file: string) => void;
 }
 
-const FILTERS: [Filter, string][] = [
-  ['all', 'All'],
-  ['active', 'Active'],
-  ['ended', 'Ended'],
-  ['locked', 'Locked'],
-];
+function fmtDate(d: string): string {
+  if (!d) return 'undated';
+  const t = Date.parse(d + 'T00:00:00Z');
+  return Number.isNaN(t)
+    ? d
+    : new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
 
 export function Sidebar({
-  voyages,
+  files,
+  selectedFile,
   selectedId,
-  filter,
   search,
-  expandedQ,
+  expanded,
   canEdit,
+  canMutate,
+  clipboardCount,
   onSearch,
-  onFilter,
   onSelect,
-  onToggleQuarter,
+  onToggleFile,
   onNewVoyage,
+  onCopyVoyage,
+  onRequestPaste,
 }: Props) {
   const q = search.trim().toLowerCase();
-  const ids = Object.keys(voyages).sort((a, b) => Number(a) - Number(b));
-  const filtered = ids
-    .map((id) => voyages[id])
-    .filter((vo) => {
-      if (filter === 'active' && vo.ended) return false;
-      if (filter === 'ended' && !vo.ended) return false;
-      if (filter === 'locked' && !vo.locked) return false;
-      if (q) {
-        const hay = (vo.title + ' ' + vo.id + ' ' + vo.legs.map((l) => l.port).join(' ')).toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-
-  // group by quarter, preserving first-seen order
-  const order: string[] = [];
-  const groups: Record<string, typeof filtered> = {};
-  for (const vo of filtered) {
-    const qk = quarterFor(voyages, vo.id);
-    if (!groups[qk]) {
-      groups[qk] = [];
-      order.push(qk);
-    }
-    groups[qk].push(vo);
-  }
 
   return (
     <aside className="vt-scroll flex flex-col overflow-y-auto border-r border-line bg-surface">
@@ -76,7 +59,7 @@ export function Sidebar({
           name="voyage-search"
           autoComplete="off"
           spellCheck={false}
-          aria-label="Search voyages and ports"
+          aria-label="Search voyages and ports across all files"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search voyages, ports…"
@@ -84,98 +67,139 @@ export function Sidebar({
         />
       </div>
 
-      {canEdit && (
+      {canMutate && selectedFile && (
         <div className="border-b border-line px-3 py-2.5">
           <button
             onClick={onNewVoyage}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-cyan/40 bg-[rgba(6,182,212,0.08)] py-2 text-[0.72rem] font-bold uppercase tracking-[0.8px] text-cyan-deep hover:bg-[rgba(6,182,212,0.15)]"
           >
-            <PlusIcon size={12} /> New Voyage
+            <PlusIcon size={12} /> New voyage in {selectedFile}
           </button>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1 border-b border-line px-3 py-2.5">
-        {FILTERS.map(([k, label]) => {
-          const on = filter === k;
-          return (
-            <button
-              key={k}
-              onClick={() => onFilter(k)}
-              className="rounded-full border px-2.5 py-1 text-[0.6rem] font-bold uppercase tracking-[0.8px]"
-              style={
-                on
-                  ? { background: 'rgba(6,182,212,0.12)', color: 'var(--color-cyan-deep)', borderColor: 'rgba(6,182,212,0.35)' }
-                  : { background: 'var(--color-rail)', color: 'var(--color-muted)', borderColor: 'var(--color-line)' }
-              }
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
       <div className="flex-1 p-1.5 text-[0.82rem]">
-        {order.length === 0 && (
+        {files.length === 0 && (
           <div className="px-3 py-8 text-center text-[0.74rem] leading-relaxed text-faint">
-            {Object.keys(voyages).length === 0
-              ? canEdit
-                ? 'No voyages yet for this ship. Use New Voyage to start one.'
-                : 'No voyages yet for this ship.'
-              : 'No voyages match this filter.'}
+            No <span className="font-mono">.json</span> files in this folder yet.
           </div>
         )}
-        {order.map((qk) => {
-          const open = expandedQ[qk] !== false;
-          const rows = groups[qk];
+
+        {files.map((file) => {
+          const open = expanded[file.name] !== false;
+          const rows = Object.values(file.voyages)
+            .filter((vo) => {
+              if (!q) return true;
+              const hay = (vo.title + ' ' + vo.legs.map((l) => l.port).join(' ')).toLowerCase();
+              return hay.includes(q);
+            })
+            .sort((a, b) => voyageStartDate(a).localeCompare(voyageStartDate(b)));
+          if (q && rows.length === 0 && !file.error) return null;
+
           return (
-            <div key={qk}>
-              <button
-                type="button"
-                onClick={() => onToggleQuarter(qk)}
-                aria-expanded={open}
-                className="vt-unbutton flex w-full select-none items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.62rem] font-extrabold uppercase tracking-[0.8px] text-muted hover:bg-rail"
-              >
-                <span aria-hidden="true" className="w-[11px] flex-shrink-0 text-center text-[0.65rem] text-faint">
+            <div key={file.name} className="mb-0.5">
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => onToggleFile(file.name)}
+                  aria-label={open ? `Collapse ${file.name}` : `Expand ${file.name}`}
+                  aria-expanded={open}
+                  className="vt-unbutton w-[16px] flex-shrink-0 rounded text-center text-[0.65rem] text-faint hover:text-ink"
+                >
                   {open ? '▾' : '▸'}
-                </span>
-                <span className="flex-shrink-0 text-muted">
-                  <CalendarIcon size={13} />
-                </span>
-                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left">{qk}</span>
-                <span className="rounded-full bg-rail px-[7px] py-px font-mono text-[0.56rem] font-semibold text-muted">
-                  {rows.length}
-                </span>
-              </button>
-              {open && (
-                <div className="mb-1 ml-3 border-l border-line pl-2">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelect(file.name, rows[0]?.id ?? '')}
+                  aria-current={selectedFile === file.name ? 'true' : undefined}
+                  className="vt-unbutton flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-left hover:bg-rail"
+                  style={{ background: selectedFile === file.name ? 'rgba(6,182,212,0.08)' : 'transparent' }}
+                >
+                  <span className="flex-shrink-0 text-muted">
+                    <FileIcon size={13} />
+                  </span>
+                  <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[0.74rem] font-semibold text-ink">
+                    {file.name}
+                  </span>
+                  {file.shipId && (
+                    <span className="flex-shrink-0 rounded bg-rail px-1 font-mono text-[0.52rem] font-bold uppercase tracking-[0.5px] text-muted">
+                      {file.shipId}
+                    </span>
+                  )}
+                  {!file.error && (
+                    <span className="flex-shrink-0 rounded-full bg-rail px-[7px] py-px font-mono text-[0.56rem] font-semibold text-muted">
+                      {Object.keys(file.voyages).length}
+                    </span>
+                  )}
+                </button>
+                {clipboardCount > 0 && canMutate && !file.error && (
+                  <button
+                    type="button"
+                    onClick={() => onRequestPaste(file.name)}
+                    title={`Paste copied voyage into ${file.name}`}
+                    aria-label={`Paste copied voyage into ${file.name}`}
+                    className="vt-unbutton flex-shrink-0 rounded p-1 text-cyan-deep hover:bg-rail"
+                  >
+                    <PasteIcon size={13} />
+                  </button>
+                )}
+              </div>
+
+              {open && file.error && (
+                <div className="ml-5 rounded bg-[rgba(244,63,94,0.06)] px-2 py-1 text-[0.62rem] text-[color:var(--color-spd-hi-fg)]">
+                  Couldn’t read this file: {file.error}
+                </div>
+              )}
+
+              {open && !file.error && (
+                <div className="mb-1 ml-3 border-l border-line pl-1.5">
+                  {rows.length === 0 && (
+                    <div className="px-2 py-1 text-[0.64rem] text-faint">No voyages</div>
+                  )}
                   {rows.map((vo) => {
-                    const active = vo.id === selectedId;
+                    const active = file.name === selectedFile && vo.id === selectedId;
                     const glyph = vo.locked ? '🔒' : vo.ended ? '⚑' : '●';
                     const statusLabel = vo.locked ? 'Locked' : vo.ended ? 'Ended' : 'Active';
                     const statusFg = vo.locked ? 'var(--color-faint)' : vo.ended ? 'var(--color-muted)' : '#10b981';
                     return (
-                      <button
-                        type="button"
-                        key={vo.id}
-                        onClick={() => onSelect(vo.id)}
-                        aria-current={active ? 'true' : undefined}
-                        className="vt-unbutton flex w-full select-none items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-rail"
-                        style={{
-                          background: active ? 'rgba(6,182,212,0.12)' : 'transparent',
-                          color: active ? 'var(--color-cyan-deep)' : 'var(--color-ink)',
-                          fontWeight: active ? 600 : 400,
-                        }}
-                      >
-                        <span aria-hidden="true" className="w-3.5 flex-shrink-0 text-center" style={{ color: active ? 'var(--color-cyan-deep)' : 'var(--color-muted)' }}>
-                          ⚓
-                        </span>
-                        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left">{vo.title}</span>
-                        <span className="sr-only">{statusLabel}</span>
-                        <span aria-hidden="true" className="font-mono text-[0.58rem] tracking-[0.5px]" style={{ color: statusFg }}>
-                          {glyph}
-                        </span>
-                      </button>
+                      <div key={vo.id} className="group flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => onSelect(file.name, vo.id)}
+                          aria-current={active ? 'true' : undefined}
+                          className="vt-unbutton flex min-w-0 flex-1 select-none items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-rail"
+                          style={{
+                            background: active ? 'rgba(6,182,212,0.12)' : 'transparent',
+                            color: active ? 'var(--color-cyan-deep)' : 'var(--color-ink)',
+                            fontWeight: active ? 600 : 400,
+                          }}
+                        >
+                          <span aria-hidden="true" className="w-3 flex-shrink-0 text-center" style={{ color: active ? 'var(--color-cyan-deep)' : 'var(--color-muted)' }}>
+                            ⚓
+                          </span>
+                          <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left">
+                            {vo.title}
+                          </span>
+                          <span className="hidden flex-shrink-0 font-mono text-[0.56rem] text-faint sm:inline">
+                            {fmtDate(voyageStartDate(vo))}
+                          </span>
+                          <span className="sr-only">{statusLabel}</span>
+                          <span aria-hidden="true" className="font-mono text-[0.58rem] tracking-[0.5px]" style={{ color: statusFg }}>
+                            {glyph}
+                          </span>
+                        </button>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => onCopyVoyage(file.name, vo.id)}
+                            title={`Copy “${vo.title}”`}
+                            aria-label={`Copy voyage ${vo.title}`}
+                            className="vt-unbutton flex-shrink-0 rounded p-1 text-muted opacity-0 hover:bg-rail hover:text-cyan-deep focus:opacity-100 group-hover:opacity-100"
+                          >
+                            <CopyIcon size={12} />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
