@@ -34,8 +34,8 @@
   /* speed-band badges */
   --color-spd-hi-fg: #b91c1c;
   --color-spd-hi-bg: #fee2e2;
-  --color-spd-lo-fg: #c2410c;
-  --color-spd-lo-bg: #ffedd5;
+  --color-spd-lo-fg: #7c3aed;
+  --color-spd-lo-bg: #f3e8ff;
   --color-spd-ok-fg: #047857;
   --color-spd-ok-bg: #ecfdf5;
 }
@@ -69,7 +69,7 @@
   --color-btn-strong: #244763;
   /* brighter speed-band text so the coloured digits read on the dark surface */
   --color-spd-hi-fg: #f87171;
-  --color-spd-lo-fg: #fb923c;
+  --color-spd-lo-fg: #a78bfa;
   --color-spd-ok-fg: #34d399;
 }
 
