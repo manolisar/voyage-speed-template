@@ -25,6 +25,9 @@ const SPEED_VAR: Record<SpeedBand, string> = {
 };
 
 const tdCls = 'border-b border-r border-line';
+// Soft shadow at the right of the frozen-column block (shows once content
+// scrolls under it). Kept here so the Speed cell can compose it with its accent.
+const FREEZE_EDGE = '6px 0 8px -6px rgba(15, 23, 42, 0.22)';
 const dash = <span className="font-mono text-[0.72rem] text-faint">—</span>;
 
 // Accessible names for the otherwise-unlabeled grid inputs.
@@ -88,8 +91,23 @@ export function LegRow({
 
   // Sticky style for the first FROZEN columns. `bg` keeps frozen cells opaque
   // so scrolled columns don't bleed through their transparent row tint.
-  const frozen = (col: number, bg = chip.solid): CSSProperties | undefined =>
-    col < FROZEN ? { position: 'sticky', left: lefts[col] ?? 0, zIndex: 10, background: bg } : undefined;
+  // Column separators are drawn as an inset shadow on each cell's LEFT edge,
+  // not via border-r: adjacent sticky cells can overlap by a subpixel once
+  // scrolled and the right-hand cell paints on top, so a right border gets
+  // covered — a left-drawn line is painted by the cell on top and survives.
+  const frozen = (col: number, bg = chip.solid): CSSProperties | undefined => {
+    if (col >= FROZEN) return undefined;
+    const parts: string[] = [];
+    if (col > 0) parts.push('inset 1px 0 0 0 var(--color-line)');
+    if (col === FROZEN - 1) parts.push(FREEZE_EDGE);
+    return {
+      position: 'sticky',
+      left: lefts[col] ?? 0,
+      zIndex: 10,
+      background: bg,
+      boxShadow: parts.length ? parts.join(', ') : undefined,
+    };
+  };
   const edge = (col: number) => (col === FROZEN - 1 ? ' vt-freeze-edge' : '');
 
   // Excel-style fill handle: drag down from a date cell to write a +1-day
@@ -146,11 +164,13 @@ export function LegRow({
 
   const dateBg = fillActive ? 'color-mix(in srgb, var(--color-cyan) 16%, var(--color-surface))' : chip.solid;
 
-  // Out-of-band speeds get a vertical accent on the Speed cell's left edge
-  // (calmer than an underline). The border is always reserved (transparent when
-  // in-band) so flagged rows don't shift the column.
+  // Speed cell's left edge: a 3px coloured band when out-of-band (calmer than an
+  // underline), else the same 1px separator the other frozen cells use. Drawn as
+  // an inset shadow so there's no layout shift and it survives sticky overlap.
   const speedBand = view.speedBand && view.speedBand !== 'ok' ? view.speedBand : null;
-  const speedAccent = speedBand ? SPEED_VAR[speedBand] : 'transparent';
+  const speedLeft = speedBand
+    ? `inset 3px 0 0 0 ${SPEED_VAR[speedBand]}`
+    : 'inset 1px 0 0 0 var(--color-line)';
 
   return (
     <tr data-leg-index={index} style={{ background: chip.row }}>
@@ -187,7 +207,7 @@ export function LegRow({
         )}
       </td>
       {/* Location */}
-      <td className={`${tdCls} px-1${edge(2)}`} style={frozen(2)}>{inp('port', { width: 158, weight: 600 })}</td>
+      <td className={`${tdCls} px-1${edge(2)}`} style={frozen(2)}>{inp('port', { width: 210, weight: 600 })}</td>
       {/* Dist */}
       <td className={`${tdCls} px-1 text-right${edge(3)}`} style={frozen(3)}>
         {view.isPort ? inp('dist', { width: 62, align: 'right', mono: true }) : dash}
@@ -202,7 +222,7 @@ export function LegRow({
               disabled={readonly}
               aria-pressed={leg.mode === 'speed'}
               aria-label="Speed mode: enter times, compute speed"
-              className="vt-unbutton px-2 py-[3px] text-[0.56rem] font-extrabold tracking-[0.6px]"
+              className="vt-unbutton px-3 py-[4px] text-[0.62rem] font-extrabold tracking-[0.7px]"
               style={leg.mode === 'speed' ? { background: '#06b6d4', color: '#fff' } : { background: 'var(--color-surface)', color: 'var(--color-muted)' }}
             >
               SPD
@@ -213,7 +233,7 @@ export function LegRow({
               disabled={readonly}
               aria-pressed={leg.mode !== 'speed'}
               aria-label="Time mode: enter target speed, compute ETA"
-              className="vt-unbutton border-l-2 border-line px-2 py-[3px] text-[0.56rem] font-extrabold tracking-[0.6px]"
+              className="vt-unbutton border-l-2 border-line px-3 py-[4px] text-[0.62rem] font-extrabold tracking-[0.7px]"
               style={leg.mode !== 'speed' ? { background: '#6366F1', color: '#fff' } : { background: 'var(--color-surface)', color: 'var(--color-muted)' }}
             >
               TIME
@@ -228,7 +248,7 @@ export function LegRow({
         </div>
       </td>
       {/* Speed */}
-      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={{ ...frozen(6), borderLeft: `3px solid ${speedAccent}` }}>
+      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={{ ...frozen(6), boxShadow: `${speedLeft}, ${FREEZE_EDGE}` }}>
         {view.speedComputed ? (
           view.speedDisplay ? (
             <span

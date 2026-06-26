@@ -125,7 +125,20 @@ export function LegsTable(props: Props) {
                     }${i === FROZEN - 1 ? ' vt-freeze-edge' : ''}`}
                     style={{
                       textAlign: align as 'left' | 'right' | 'center',
-                      ...(isFrozen ? { left: lefts[i] ?? 0 } : null),
+                      // Match the body's left-edge separators (see LegRow) so the
+                      // frozen-column borders stay put when the table scrolls.
+                      ...(isFrozen
+                        ? {
+                            left: lefts[i] ?? 0,
+                            boxShadow:
+                              [
+                                i > 0 ? 'inset 1px 0 0 0 var(--color-line)' : '',
+                                i === FROZEN - 1 ? '6px 0 8px -6px rgba(15, 23, 42, 0.22)' : '',
+                              ]
+                                .filter(Boolean)
+                                .join(', ') || undefined,
+                          }
+                        : null),
                     }}
                   >
                     {label}
