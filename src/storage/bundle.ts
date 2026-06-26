@@ -9,7 +9,7 @@
 //   "selectedId": "586",
 //   "voyages": { "586": { id, title, legs: [...], ... }, ... }
 // }
-import type { Bundle, Voyage, VoyageMap } from '../types';
+import type { Bundle, Leg, LegType, Voyage, VoyageMap } from '../types';
 
 export const BUNDLE_VERSION = 1;
 export const APP_ID = 'voyage-speed-template';
@@ -94,7 +94,37 @@ function normalizeVoyage(v: Voyage, id: string): Voyage {
     ended: !!v.ended,
     locked: v.locked !== false,
     loggedBy: typeof v.loggedBy === 'string' ? v.loggedBy : '',
-    legs: Array.isArray(v.legs) ? v.legs : [],
+    legs: Array.isArray(v.legs) ? v.legs.map(normalizeLeg) : [],
     versions: Array.isArray(v.versions) ? v.versions : [],
+  };
+}
+
+const LEG_TYPES = new Set<LegType>(['Port', 'Sea', 'Tender']);
+const str = (val: unknown): string => (typeof val === 'string' ? val : '');
+
+// Coerce one (possibly hand-edited) leg into the strict Leg shape. A bad `type`
+// or a non-string field would otherwise crash LegRow (e.g. TYPE_CHIP[leg.type]),
+// so clamp `type`/`mode` to known values and force every other field to a string.
+function normalizeLeg(raw: unknown): Leg {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    type: LEG_TYPES.has(o.type as LegType) ? (o.type as LegType) : 'Port',
+    date: str(o.date),
+    port: str(o.port),
+    dist: str(o.dist),
+    mode: o.mode === 'time' ? 'time' : 'speed',
+    eta: str(o.eta),
+    arr: str(o.arr),
+    dep: str(o.dep),
+    faw: str(o.faw),
+    sunrise: str(o.sunrise),
+    sunset: str(o.sunset),
+    utc: str(o.utc),
+    openLoop: str(o.openLoop),
+    seaCond: str(o.seaCond),
+    stbyArrDist: str(o.stbyArrDist),
+    stbyDepDist: str(o.stbyDepDist),
+    remarks: str(o.remarks),
+    speed: str(o.speed),
   };
 }

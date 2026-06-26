@@ -1,6 +1,6 @@
 # Voyage Speed Tracker — Project Charter
 
-> Speed & time planner for the **Solstice-class fleet** (5 ships). Rebuilt from a Claude Design
+> Speed & time planner for the **Solstice-class fleet** (5 ships). Rebuilt from a Codex Design
 > artifact (`Voyage Speed Tracker.dc.html`) into a production React/TS SPA. Same engineering
 > philosophy as `~/Projects/Voyage_Tracker_v8`: static, no backend, JSON is the record.
 
@@ -138,3 +138,21 @@ voyages as a **new `.json` file in the folder** (`useWorkspace.doImportExcel` �
 then selects it. Round-trip is locked by `excel.test.ts` (exceljs build → SheetJS parse).
 
 *Last updated: 2026-06-26.*
+
+
+<claude-mem-context>
+# Memory Context
+
+# claude-mem status
+
+This project has no memory yet. The current session will seed it; subsequent sessions will receive auto-injected context for relevant past work.
+
+Memory injection starts on your second session in a project.
+
+`/learn-codebase` is available if the user wants to front-load the entire repo into memory in a single pass (~5 minutes on a typical repo, optional). Otherwise memory builds passively as work happens.
+
+Live activity: http://localhost:37701
+How it works: `/how-it-works`
+
+This message disappears once the first observation lands.
+</claude-mem-context>

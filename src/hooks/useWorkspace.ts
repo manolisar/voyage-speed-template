@@ -159,6 +159,31 @@ export function useWorkspace(session: Session): WorkspaceApi {
     filesRef.current = files;
   }, [files]);
 
+  // Edit authorization is scoped to the local date. A tab left open past local
+  // midnight must drop back to view mode — re-check on focus/visibility and on a
+  // slow timer so the stale stamp doesn't keep editing alive into a new day.
+  useEffect(() => {
+    if (!editAuthorized) return;
+    const check = () => {
+      if (!readEditAuth()) {
+        try {
+          sessionStorage.removeItem(EDIT_SS_KEY);
+        } catch {
+          /* ignore */
+        }
+        setEditAuthorized(false);
+      }
+    };
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    const id = setInterval(check, 60000);
+    return () => {
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+      clearInterval(id);
+    };
+  }, [editAuthorized]);
+
   const flash = useCallback((msg: string) => {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -166,9 +191,12 @@ export function useWorkspace(session: Session): WorkspaceApi {
   }, []);
 
   // ── Disk write-back ───────────────────────────────────────────────────
-  const flushDirty = useCallback(async () => {
+  // Returns the names of files that failed to write (re-queued for retry) so
+  // callers like Save can report honestly instead of always flashing "Saved".
+  const flushDirty = useCallback(async (): Promise<string[]> => {
     const names = [...dirtyRef.current];
     dirtyRef.current.clear();
+    const failed: string[] = [];
     for (const name of names) {
       const f = filesRef.current.find((x) => x.name === name);
       const h = handlesRef.current.get(name);
@@ -177,9 +205,11 @@ export function useWorkspace(session: Session): WorkspaceApi {
           await writeWorkspaceFile(h, f);
         } catch {
           dirtyRef.current.add(name); // retry on next flush
+          failed.push(name);
         }
       }
     }
+    return failed;
   }, []);
 
   const markDirty = useCallback(
@@ -512,11 +542,14 @@ export function useWorkspace(session: Session): WorkspaceApi {
 
   // ── Lock / edit gate ──────────────────────────────────────────────────
   const toggleLock = useCallback(() => {
-    if (!current || !canEdit) return;
+    if (!canEdit) return;
+    // Open the password gate even with no voyage selected — otherwise an empty
+    // folder is a dead end (can't authorize → can't create the first file).
     if (!editAuthorized) {
       setShowPassword(true);
       return;
     }
+    if (!current) return; // authorized but nothing to lock yet
     if (current.locked) {
       setUnlockNote('');
       setShowUnlock(true);
@@ -632,9 +665,17 @@ export function useWorkspace(session: Session): WorkspaceApi {
 
   // ── Save / export ─────────────────────────────────────────────────────
   const doSaveJson = useCallback(async () => {
-    if (selectedFile) dirtyRef.current.add(selectedFile);
-    await flushDirty();
-    flash(selectedFile ? `Saved · ${selectedFile}` : 'Nothing to save');
+    if (!selectedFile) {
+      flash('Nothing to save');
+      return;
+    }
+    dirtyRef.current.add(selectedFile);
+    const failed = await flushDirty();
+    if (failed.includes(selectedFile)) {
+      flash(`Couldn’t save ${selectedFile} — check folder access`);
+    } else {
+      flash(`Saved · ${selectedFile}`);
+    }
   }, [selectedFile, flushDirty, flash]);
 
   // Import an .xlsx into the folder as a NEW .json file, then select it.

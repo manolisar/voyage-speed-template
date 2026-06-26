@@ -61,7 +61,7 @@ export function Header({
   onSetTheme,
 }: Props) {
   const iconBtn =
-    'inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[0.75rem] font-semibold text-ink hover:bg-rail';
+    'inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-line bg-surface px-3 py-2 text-[0.75rem] font-semibold text-ink hover:bg-rail';
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (exportMenu) menuRef.current?.querySelector('button')?.focus();
@@ -152,7 +152,7 @@ export function Header({
       </div>
 
       <span
-        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.62rem] font-bold tracking-[0.8px]"
+        className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[0.62rem] font-bold tracking-[0.8px]"
         style={
           editing
             ? { background: '#FFFBEB', color: '#D97706', borderColor: '#FDE68A' }
@@ -223,10 +223,10 @@ export function Header({
         )}
       </div>
 
-      {canEdit && fileName && (
+      {canEdit && dirName && (
         <button
           onClick={onToggleLock}
-          className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"
+          className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-[0.75rem] font-semibold text-white hover:brightness-95"
           style={{ background: editing ? 'var(--color-btn-strong)' : 'var(--color-amber-btn)' }}
         >
           <span className="inline-flex">{editing ? <LockIcon size={13} /> : <EditIcon size={13} />}</span>

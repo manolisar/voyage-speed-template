@@ -159,13 +159,23 @@ function Workspace({
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
               <div className="text-base font-bold text-ink">
-                {w.files.length === 0 ? 'No files in this folder' : 'Select a cruise'}
+                {w.files.length === 0 ? 'No files in this folder yet' : 'Select a cruise'}
               </div>
               <div className="max-w-md text-[0.8rem] leading-relaxed text-muted">
                 {w.files.length === 0
-                  ? 'This folder has no readable .json templates. Choose another folder from the header.'
+                  ? w.canEdit
+                    ? 'Create the first .json template here, or pick a different folder from the header.'
+                    : 'This folder has no .json templates. Ask an editor to add one, or choose another folder from the header.'
                   : 'Pick a cruise from the tree on the left, or use Add Template to start one.'}
               </div>
+              {w.files.length === 0 && w.canEdit && (
+                <button
+                  onClick={() => (w.editAuthorized ? w.createFile() : w.toggleLock())}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-cyan px-4 py-2 text-[0.8rem] font-semibold text-white shadow-[0_1px_2px_rgba(6,182,212,0.25)] transition hover:brightness-105"
+                >
+                  New .json file
+                </button>
+              )}
             </div>
           )}
         </main>

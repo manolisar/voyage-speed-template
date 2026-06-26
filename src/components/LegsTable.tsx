@@ -109,7 +109,9 @@ export function LegsTable(props: Props) {
       </div>
 
       <div className="vt-scroll overflow-x-auto rounded-xl border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <table className="w-full min-w-[2280px] border-collapse text-[0.72rem]">
+        {/* border-separate (not collapse): collapsed borders vanish on the
+            sticky header / frozen cells during scroll in Chromium. */}
+        <table className="w-full min-w-[2280px] border-separate border-spacing-0 text-[0.72rem]">
           <thead>
             <tr ref={headRowRef}>
               {COLUMNS.map(([label, align], i) => {

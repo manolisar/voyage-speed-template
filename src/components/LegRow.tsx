@@ -146,6 +146,12 @@ export function LegRow({
 
   const dateBg = fillActive ? 'color-mix(in srgb, var(--color-cyan) 16%, var(--color-surface))' : chip.solid;
 
+  // Out-of-band speeds get a vertical accent on the Speed cell's left edge
+  // (calmer than an underline). The border is always reserved (transparent when
+  // in-band) so flagged rows don't shift the column.
+  const speedBand = view.speedBand && view.speedBand !== 'ok' ? view.speedBand : null;
+  const speedAccent = speedBand ? SPEED_VAR[speedBand] : 'transparent';
+
   return (
     <tr data-leg-index={index} style={{ background: chip.row }}>
       {/* Type */}
@@ -196,7 +202,7 @@ export function LegRow({
               disabled={readonly}
               aria-pressed={leg.mode === 'speed'}
               aria-label="Speed mode: enter times, compute speed"
-              className="vt-unbutton px-1.5 py-[3px] text-[0.54rem] font-extrabold tracking-[0.5px]"
+              className="vt-unbutton px-2 py-[3px] text-[0.56rem] font-extrabold tracking-[0.6px]"
               style={leg.mode === 'speed' ? { background: '#06b6d4', color: '#fff' } : { background: 'var(--color-surface)', color: 'var(--color-muted)' }}
             >
               SPD
@@ -207,7 +213,7 @@ export function LegRow({
               disabled={readonly}
               aria-pressed={leg.mode !== 'speed'}
               aria-label="Time mode: enter target speed, compute ETA"
-              className="vt-unbutton border-l border-line px-1.5 py-[3px] text-[0.54rem] font-extrabold tracking-[0.5px]"
+              className="vt-unbutton border-l-2 border-line px-2 py-[3px] text-[0.56rem] font-extrabold tracking-[0.6px]"
               style={leg.mode !== 'speed' ? { background: '#6366F1', color: '#fff' } : { background: 'var(--color-surface)', color: 'var(--color-muted)' }}
             >
               TIME
@@ -222,20 +228,12 @@ export function LegRow({
         </div>
       </td>
       {/* Speed */}
-      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={frozen(6)}>
+      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={{ ...frozen(6), borderLeft: `3px solid ${speedAccent}` }}>
         {view.speedComputed ? (
           view.speedDisplay ? (
             <span
               className="inline-block font-mono text-[0.74rem] font-extrabold"
-              style={
-                view.speedBand && view.speedBand !== 'ok'
-                  ? {
-                      color: SPEED_VAR[view.speedBand],
-                      borderBottom: `2px solid ${SPEED_VAR[view.speedBand]}`,
-                      paddingBottom: '1px',
-                    }
-                  : { color: 'var(--color-ink)' }
-              }
+              style={{ color: speedBand ? SPEED_VAR[speedBand] : 'var(--color-ink)' }}
             >
               {view.speedDisplay}
             </span>
