@@ -119,9 +119,8 @@ export function LegRow({
       boxShadow: parts.length ? parts.join(', ') : undefined,
     };
   };
-  // The freeze-edge shadow is now driven inline by `scrolled` (see the Speed
-  // cell) so the boundary only shadows while content sits under it; no class.
-  const edge = (_col: number) => '';
+  // The freeze-edge shadow is driven inline by `scrolled` (see the Speed cell)
+  // so the boundary only shadows while content sits under it.
 
   // Excel-style fill handle: drag down from a date cell to write a +1-day
   // series into the rows below. Tracks the pointer over rows by their
@@ -189,7 +188,7 @@ export function LegRow({
   return (
     <tr data-leg-index={index} style={{ background: chip.row }}>
       {/* Type */}
-      <td className={`${tdCls} px-1.5 py-[3px] text-center${edge(0)}`} style={frozen(0)}>
+      <td className={`${tdCls} px-1.5 py-[3px] text-center`} style={frozen(0)}>
         <button
           type="button"
           onClick={() => onToggleType(index)}
@@ -207,7 +206,7 @@ export function LegRow({
         </button>
       </td>
       {/* Date — with Excel-style fill handle */}
-      <td className={`${tdCls} relative px-1${edge(1)}`} style={frozen(1, dateBg)}>
+      <td className={`${tdCls} relative px-1`} style={frozen(1, dateBg)}>
         {inp('date', { width: 96, placeholder: 'YYYY-MM-DD', mono: true })}
         {!readonly && (
           <span
@@ -221,13 +220,13 @@ export function LegRow({
         )}
       </td>
       {/* Location */}
-      <td className={`${tdCls} px-1${edge(2)}`} style={frozen(2)}>{inp('port', { width: 210, weight: 600 })}</td>
+      <td className={`${tdCls} px-1`} style={frozen(2)}>{inp('port', { width: 210, weight: 600 })}</td>
       {/* Dist */}
-      <td className={`${tdCls} px-1 text-right${edge(3)}`} style={frozen(3)}>
+      <td className={`${tdCls} px-1 text-right`} style={frozen(3)}>
         {view.isPort ? inp('dist', { width: 62, align: 'right', mono: true }) : dash}
       </td>
       {/* Mode */}
-      <td className={`${tdCls} px-1 text-center${edge(4)}`} style={frozen(4)}>
+      <td className={`${tdCls} px-1 text-center`} style={frozen(4)}>
         {view.isPort && (
           <span className="inline-flex overflow-hidden rounded-md border border-line" role="group" aria-label={`Leg ${index + 1} solve mode`}>
             <button
@@ -257,13 +256,13 @@ export function LegRow({
       </td>
       {/* Time (computed) — extra right padding so the digits clear the Speed
           cell, which (being sticky too) overlaps this cell's right edge. */}
-      <td className={`${tdCls} pl-1.5 pr-3 text-right${edge(5)}`} style={frozen(5)}>
+      <td className={`${tdCls} pl-1.5 pr-3 text-right`} style={frozen(5)}>
         <div className="font-mono text-[0.74rem] font-bold" style={{ color: view.timeComputed ? 'var(--color-ink)' : 'var(--color-faint)' }}>
           {view.timeDisplay}
         </div>
       </td>
       {/* Speed */}
-      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={{ ...frozen(6), boxShadow: scrolled ? `${speedLeft}, ${FREEZE_EDGE}` : speedLeft }}>
+      <td className={`${tdCls} px-1 text-right`} style={{ ...frozen(6), boxShadow: scrolled ? `${speedLeft}, ${FREEZE_EDGE}` : speedLeft }}>
         {view.speedComputed ? (
           view.speedDisplay ? (
             <span
