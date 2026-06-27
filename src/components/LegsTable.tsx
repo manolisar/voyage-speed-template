@@ -67,6 +67,41 @@ export function LegsTable(props: Props) {
     };
   }, [legs.length]);
 
+  // True once the table is scrolled off its left edge — gates the soft shadow
+  // at the frozen-column boundary so it only shows while content sits under it
+  // (and clears again when scrolled fully back to the left).
+  const [scrolled, setScrolled] = useState(false);
+
+  // Excel-style grid keyboard navigation. Each data input carries a `data-col`
+  // (its table-column index); inputs sit in row order in the DOM. Up/Down/Enter
+  // move within a column (skipping rows that lack that input); Tab/Shift+Tab
+  // step across cells, wrapping to the next/previous row. Left/Right keep their
+  // normal text-caret behaviour.
+  const onGridKey = (e: React.KeyboardEvent<HTMLTableElement>) => {
+    const t = e.target as HTMLElement;
+    if (t.tagName !== 'INPUT' || t.dataset.col == null) return;
+    const input = t as HTMLInputElement;
+    const table = e.currentTarget;
+    const go = (el: HTMLInputElement | undefined) => {
+      if (!el) return;
+      e.preventDefault();
+      el.focus();
+      el.select();
+    };
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      const col = Array.from(table.querySelectorAll<HTMLInputElement>(`input[data-col="${input.dataset.col}"]`));
+      const i = col.indexOf(input);
+      go(col[i + (e.key === 'ArrowUp' ? -1 : 1)]);
+    } else if (e.key === 'Tab') {
+      // DOM order is row-major, so stepping ±1 moves across columns and wraps to
+      // the next/previous row. At the first/last input we fall through to native
+      // Tab so focus can still leave the table.
+      const all = Array.from(table.querySelectorAll<HTMLInputElement>('input[data-col]'));
+      const i = all.indexOf(input);
+      go(all[i + (e.shiftKey ? -1 : 1)]);
+    }
+  };
+
   // Live fill-handle range (date drag). null when not dragging.
   const [fill, setFill] = useState<{ from: number; to: number } | null>(null);
   const onFillPreview = (from: number, to: number) => setFill(from < 0 ? null : { from, to });
@@ -108,10 +143,13 @@ export function LegsTable(props: Props) {
         </div>
       </div>
 
-      <div className="vt-scroll overflow-x-auto rounded-xl border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <div
+        className="vt-scroll overflow-x-auto rounded-xl border border-line bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+        onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 0)}
+      >
         {/* border-separate (not collapse): collapsed borders vanish on the
             sticky header / frozen cells during scroll in Chromium. */}
-        <table className="w-full min-w-[2280px] border-separate border-spacing-0 text-[0.72rem]">
+        <table onKeyDown={onGridKey} className="w-full min-w-[2280px] border-separate border-spacing-0 text-[0.72rem]">
           <thead>
             <tr ref={headRowRef}>
               {COLUMNS.map(([label, align], i) => {
@@ -122,7 +160,7 @@ export function LegsTable(props: Props) {
                     scope="col"
                     className={`sticky top-0 whitespace-nowrap border-b border-r border-line bg-rail px-2 py-2 text-[0.5rem] font-bold uppercase tracking-[1.1px] text-faint ${
                       isFrozen ? 'z-30' : 'z-20'
-                    }${i === FROZEN - 1 ? ' vt-freeze-edge' : ''}`}
+                    }`}
                     style={{
                       textAlign: align as 'left' | 'right' | 'center',
                       // Match the body's left-edge separators (see LegRow) so the
@@ -133,7 +171,7 @@ export function LegsTable(props: Props) {
                             boxShadow:
                               [
                                 i > 0 ? 'inset 1px 0 0 0 var(--color-line)' : '',
-                                i === FROZEN - 1 ? '6px 0 8px -6px rgba(15, 23, 42, 0.22)' : '',
+                                i === FROZEN - 1 && scrolled ? '6px 0 8px -6px rgba(15, 23, 42, 0.22)' : '',
                               ]
                                 .filter(Boolean)
                                 .join(', ') || undefined,
@@ -156,6 +194,7 @@ export function LegsTable(props: Props) {
                 index={i}
                 readonly={readonly}
                 lefts={lefts}
+                scrolled={scrolled}
                 fillActive={!!fill && i > fill.from && i <= fill.to}
                 onField={props.onField}
                 onMode={props.onMode}

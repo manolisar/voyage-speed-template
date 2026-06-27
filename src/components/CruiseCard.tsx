@@ -8,11 +8,13 @@ export function CruiseCard({
   fileName,
   editable,
   onTitle,
+  onNumber,
 }: {
   voyage: Voyage | undefined;
   fileName: string;
   editable: boolean;
   onTitle: (s: string) => void;
+  onNumber: (s: string) => void;
 }) {
   if (!voyage) return null;
   const portLegs = voyage.legs.filter((l) => l.type === 'Port');
@@ -33,20 +35,35 @@ export function CruiseCard({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           {editable ? (
-            <input
-              value={voyage.title}
-              onChange={(e) => onTitle(e.target.value)}
-              aria-label="Cruise name"
-              spellCheck={false}
-              placeholder="e.g. Norwegian Fjords"
-              className="w-full max-w-[26rem] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[1.25rem] font-extrabold leading-tight tracking-[-0.3px] text-ink outline-none transition-colors placeholder:font-bold placeholder:text-faint hover:bg-rail focus:border-cyan focus:bg-surface"
-            />
+            <div className="flex items-center gap-1.5">
+              <input
+                value={voyage.number}
+                onChange={(e) => onNumber(e.target.value)}
+                aria-label="Voyage number"
+                spellCheck={false}
+                inputMode="numeric"
+                maxLength={3}
+                placeholder="000"
+                className="w-[3.6rem] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-center font-mono text-[1.25rem] font-extrabold leading-tight tracking-[-0.3px] text-cyan-deep outline-none transition-colors [font-variant-numeric:tabular-nums] placeholder:font-bold placeholder:text-faint hover:bg-rail focus:border-cyan focus:bg-surface"
+              />
+              <span className="text-[1.25rem] font-extrabold leading-tight text-faint">—</span>
+              <input
+                value={voyage.title}
+                onChange={(e) => onTitle(e.target.value)}
+                aria-label="Cruise name"
+                spellCheck={false}
+                placeholder="e.g. British Isles & Ireland"
+                className="w-full max-w-[24rem] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-[1.25rem] font-extrabold leading-tight tracking-[-0.3px] text-ink outline-none transition-colors placeholder:font-bold placeholder:text-faint hover:bg-rail focus:border-cyan focus:bg-surface"
+              />
+            </div>
           ) : (
             <div
               className="px-1.5 py-0.5 text-[1.25rem] font-extrabold leading-tight tracking-[-0.3px]"
-              style={{ color: voyage.title ? 'var(--color-ink)' : 'var(--color-faint)', fontStyle: voyage.title ? 'normal' : 'italic' }}
+              style={{ color: voyage.title || voyage.number ? 'var(--color-ink)' : 'var(--color-faint)', fontStyle: voyage.title || voyage.number ? 'normal' : 'italic' }}
             >
-              {voyage.title || 'Untitled cruise'}
+              {voyage.number && <span className="font-mono text-cyan-deep [font-variant-numeric:tabular-nums]">{voyage.number}</span>}
+              {voyage.number && (voyage.title ? ' — ' : '')}
+              {voyage.title || (voyage.number ? '' : 'Untitled cruise')}
             </div>
           )}
           <div className="mt-1.5 px-1.5 text-[0.7rem] tracking-[0.3px] text-muted">

@@ -193,12 +193,6 @@ button {
   background: transparent;
 }
 
-/* Right edge of the frozen (sticky-left) column block in the legs table —
-   a soft shadow that only shows the freeze boundary once content scrolls under. */
-.vt-freeze-edge {
-  box-shadow: 6px 0 8px -6px rgba(15, 23, 42, 0.22);
-}
-
 /* Excel-style date fill handle: small square at the cell's corner. */
 .vt-fill-handle {
   opacity: 0;

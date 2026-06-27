@@ -90,6 +90,8 @@ export function parseBundle(text: string): Bundle {
 function normalizeVoyage(v: Voyage, id: string): Voyage {
   return {
     id: typeof v.id === 'string' && v.id ? v.id : id,
+    // Number defaults to the id (imported cruises key on their voyage number).
+    number: typeof v.number === 'string' ? v.number : String((v as { number?: unknown }).number ?? id),
     title: typeof v.title === 'string' ? v.title : `Voyage ${id}`,
     ended: !!v.ended,
     locked: v.locked !== false,

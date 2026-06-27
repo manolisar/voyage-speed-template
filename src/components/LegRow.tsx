@@ -51,12 +51,23 @@ const FIELD_LABEL: Partial<Record<keyof Leg, string>> = {
 };
 const NUMERIC_FIELDS = new Set<keyof Leg>(['dist', 'utc', 'speed', 'stbyArrDist', 'stbyDepDist']);
 
+// Table-column index of each text input, exposed as `data-col` so the grid
+// keyboard handler in LegsTable can move vertically within a column (Up/Down/
+// Enter) and horizontally across cells (Tab). Rows missing a given input (e.g.
+// Sea rows) are simply skipped on vertical moves.
+const FIELD_COL: Partial<Record<keyof Leg, number>> = {
+  date: 1, port: 2, dist: 3, speed: 6, eta: 7, arr: 8, dep: 9, faw: 10,
+  stbyArrDist: 11, stbyDepDist: 14, sunrise: 18, sunset: 19, utc: 21,
+  openLoop: 22, seaCond: 23, remarks: 24,
+};
+
 interface Props {
   leg: Leg;
   view: LegView;
   index: number;
   readonly: boolean;
   lefts: number[]; // measured left offsets for the frozen columns
+  scrolled: boolean; // table scrolled off its left edge — show the freeze-edge shadow
   fillActive: boolean; // this row is within an in-progress date fill range
   onField: (i: number, field: keyof Leg, val: string) => void;
   onMode: (i: number, mode: 'speed' | 'time') => void;
@@ -75,6 +86,7 @@ export function LegRow({
   index,
   readonly,
   lefts,
+  scrolled,
   fillActive,
   onField,
   onMode,
@@ -99,7 +111,6 @@ export function LegRow({
     if (col >= FROZEN) return undefined;
     const parts: string[] = [];
     if (col > 0) parts.push('inset 1px 0 0 0 var(--color-line)');
-    if (col === FROZEN - 1) parts.push(FREEZE_EDGE);
     return {
       position: 'sticky',
       left: lefts[col] ?? 0,
@@ -108,7 +119,9 @@ export function LegRow({
       boxShadow: parts.length ? parts.join(', ') : undefined,
     };
   };
-  const edge = (col: number) => (col === FROZEN - 1 ? ' vt-freeze-edge' : '');
+  // The freeze-edge shadow is now driven inline by `scrolled` (see the Speed
+  // cell) so the boundary only shadows while content sits under it; no class.
+  const edge = (_col: number) => '';
 
   // Excel-style fill handle: drag down from a date cell to write a +1-day
   // series into the rows below. Tracks the pointer over rows by their
@@ -151,6 +164,7 @@ export function LegRow({
       value={leg[field]}
       onChange={set(field)}
       disabled={readonly}
+      data-col={FIELD_COL[field]}
       aria-label={`${FIELD_LABEL[field] ?? field}, leg ${index + 1}`}
       inputMode={NUMERIC_FIELDS.has(field) ? 'decimal' : undefined}
       spellCheck={false}
@@ -241,14 +255,15 @@ export function LegRow({
           </span>
         )}
       </td>
-      {/* Time (computed) */}
-      <td className={`${tdCls} px-1.5 text-right${edge(5)}`} style={frozen(5)}>
+      {/* Time (computed) — extra right padding so the digits clear the Speed
+          cell, which (being sticky too) overlaps this cell's right edge. */}
+      <td className={`${tdCls} pl-1.5 pr-3 text-right${edge(5)}`} style={frozen(5)}>
         <div className="font-mono text-[0.74rem] font-bold" style={{ color: view.timeComputed ? 'var(--color-ink)' : 'var(--color-faint)' }}>
           {view.timeDisplay}
         </div>
       </td>
       {/* Speed */}
-      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={{ ...frozen(6), boxShadow: `${speedLeft}, ${FREEZE_EDGE}` }}>
+      <td className={`${tdCls} px-1 text-right${edge(6)}`} style={{ ...frozen(6), boxShadow: scrolled ? `${speedLeft}, ${FREEZE_EDGE}` : speedLeft }}>
         {view.speedComputed ? (
           view.speedDisplay ? (
             <span
@@ -265,6 +280,7 @@ export function LegRow({
             value={leg.speed}
             onChange={set('speed')}
             disabled={readonly}
+            data-col={FIELD_COL.speed}
             aria-label={`Target speed in knots, leg ${index + 1}`}
             inputMode="decimal"
             spellCheck={false}
@@ -410,6 +426,7 @@ function RemarksCell({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         readOnly={readonly}
+        data-col={FIELD_COL.remarks}
         aria-label={`Remarks, leg ${index + 1}`}
         spellCheck={false}
         placeholder="—"

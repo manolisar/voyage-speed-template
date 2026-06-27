@@ -22,13 +22,14 @@ function cards(s: Summary): CardDef[] {
     { label: 'Steaming Time', unit: 'HH:MM', value: fmtHM((s.totalHrs || 0) * 60), sub: s.totalHrs ? '(' + (s.totalHrs / 24).toFixed(1) + ' d)' : '', color: '#f97316' },
     { label: 'St/By Time', unit: 'HH:MM', value: fmtHM(s.stbyMin || 0), sub: 'maneuvering', color: '#f59e0b' },
     { label: 'Port Time', unit: 'HH:MM', value: fmtHM(s.portMin || 0), sub: 'alongside', color: '#f43f5e' },
+    { label: 'Open Loop', unit: 'HH:MM', value: fmtHM(s.openLoopMin || 0), sub: 'open ops', color: '#0284C7' },
     { label: 'Sea Condition', unit: 'HH:MM', value: fmtHM(s.seaCondMin || 0), sub: 'env ops', color: '#818cf8' },
   ];
 }
 
 export function SummaryCards({ summary }: { summary: Summary }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-8">
       {cards(summary).map((c, i) => (
         <div
           key={i}

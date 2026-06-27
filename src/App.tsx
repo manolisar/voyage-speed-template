@@ -135,7 +135,7 @@ function Workspace({
         <main id="main-content" tabIndex={-1} className="vt-scroll min-w-0 flex-1 overflow-auto bg-bg outline-none">
           {w.current ? (
             <div className="flex min-w-[1180px] flex-col gap-5 px-6 py-6">
-              <CruiseCard voyage={w.current} fileName={w.selectedFile} editable={w.editable} onTitle={w.setTitle} />
+              <CruiseCard voyage={w.current} fileName={w.selectedFile} editable={w.editable} onTitle={w.setTitle} onNumber={w.setNumber} />
               <SummaryCards summary={summary} />
               <LegsTable
                 voyage={w.current}

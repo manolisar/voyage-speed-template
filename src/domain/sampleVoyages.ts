@@ -70,6 +70,7 @@ export function seedVoyages(): VoyageMap {
   const voyages: VoyageMap = {
     '586': {
       id: '586',
+      number: '586',
       title: 'Voyage 586 — Caribbean Crossing',
       ended: true,
       locked: true,
@@ -82,6 +83,7 @@ export function seedVoyages(): VoyageMap {
     },
     '587': {
       id: '587',
+      number: '587',
       title: 'Voyage 587 — Bahamas Short',
       ended: false,
       locked: false,
@@ -94,6 +96,7 @@ export function seedVoyages(): VoyageMap {
     const title = 'Voyage ' + id + ' — ' + ROUTE_NAMES[(id - 588) % ROUTE_NAMES.length];
     voyages[String(id)] = {
       id: String(id),
+      number: String(id),
       title,
       ended: id < 600,
       locked: true,

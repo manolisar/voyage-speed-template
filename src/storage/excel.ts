@@ -228,6 +228,7 @@ export async function parseWorkbook(buf: ArrayBuffer, loggedBy: string): Promise
     const id = name.trim();
     voyages[id] = {
       id,
+      number: id, // sheet name is the voyage number
       title: `Voyage ${id}`,
       ended: false,
       locked: false,

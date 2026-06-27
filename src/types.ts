@@ -45,7 +45,8 @@ export interface Version {
 
 export interface Voyage {
   id: string;
-  title: string;
+  number: string; // 3-digit voyage/cruise number — shown as "586 — Title"
+  title: string; // product / itinerary name (e.g. "British Isles & Ireland")
   ended: boolean;
   locked: boolean;
   loggedBy: string;

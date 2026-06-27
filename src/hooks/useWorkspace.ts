@@ -98,6 +98,7 @@ export interface WorkspaceApi {
   createFile: () => Promise<void>;
   deleteVoyage: (file: string, id: string) => void;
   setTitle: (title: string) => void;
+  setNumber: (number: string) => void;
 
   updateLeg: (i: number, field: keyof Leg, val: string) => void;
   fillDownDates: (fromIndex: number, toIndex: number) => void;
@@ -475,6 +476,7 @@ export function useWorkspace(session: Session): WorkspaceApi {
         newId = nextId(voyages);
         voyages[newId] = {
           id: newId,
+          number: '',
           title: '',
           ended: false,
           locked: false,
@@ -535,6 +537,18 @@ export function useWorkspace(session: Session): WorkspaceApi {
       if (!editable) return;
       mutate((v) => {
         v.title = title;
+      });
+    },
+    [editable, mutate],
+  );
+
+  // Edit the current cruise's 3-digit voyage number. Digits only, max 3.
+  const setNumber = useCallback(
+    (number: string) => {
+      if (!editable) return;
+      const clean = number.replace(/\D/g, '').slice(0, 3);
+      mutate((v) => {
+        v.number = clean;
       });
     },
     [editable, mutate],
@@ -764,6 +778,7 @@ export function useWorkspace(session: Session): WorkspaceApi {
     createFile,
     deleteVoyage,
     setTitle,
+    setNumber,
     updateLeg,
     fillDownDates,
     setMode,

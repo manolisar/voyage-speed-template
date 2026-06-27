@@ -144,7 +144,7 @@ export function Sidebar({
           const rows = Object.values(file.voyages)
             .filter((vo) => {
               if (!q) return true;
-              const hay = (vo.title + ' ' + vo.legs.map((l) => l.port).join(' ')).toLowerCase();
+              const hay = (vo.number + ' ' + vo.title + ' ' + vo.legs.map((l) => l.port).join(' ')).toLowerCase();
               return hay.includes(q);
             })
             .sort((a, b) => voyageStartDate(a).localeCompare(voyageStartDate(b)));
@@ -237,12 +237,13 @@ export function Sidebar({
                           <span
                             className="min-w-0 flex-1 truncate text-left text-[0.78rem]"
                             style={{
-                              color: active ? 'var(--color-cyan-deep)' : vo.title ? 'var(--color-ink)' : 'var(--color-faint)',
+                              color: active ? 'var(--color-cyan-deep)' : vo.title || vo.number ? 'var(--color-ink)' : 'var(--color-faint)',
                               fontWeight: active ? 600 : 500,
-                              fontStyle: vo.title ? 'normal' : 'italic',
+                              fontStyle: vo.title || vo.number ? 'normal' : 'italic',
                             }}
                           >
-                            {vo.title || 'Untitled cruise'}
+                            {vo.number && <span className="font-mono text-[0.72rem] text-cyan-deep">{vo.number} </span>}
+                            {vo.title || (vo.number ? '' : 'Untitled cruise')}
                           </span>
                           <span className="sr-only">{st.label}</span>
                           <span className="flex-shrink-0 font-mono text-[0.58rem] tabular-nums text-faint group-hover:opacity-0">
