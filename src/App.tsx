@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from './types';
 import { useSession } from './hooks/useSession';
 import { useTheme, type Theme } from './hooks/useTheme';
@@ -30,7 +30,12 @@ function Workspace({
   theme: Theme;
   onSetTheme: (t: Theme) => void;
 }) {
-  const { legViews, summary } = computeVoyage(w.current);
+  // Memoise on the voyage object identity. mutate() replaces only the edited
+  // voyage with a fresh object, so `current` is a new reference exactly when the
+  // voyage data changes — unrelated re-renders (sidebar drag, theme) reuse the
+  // last computation instead of re-solving every leg.
+  const current = w.current;
+  const { legViews, summary } = useMemo(() => computeVoyage(current), [current]);
   const total = w.currentFile ? Object.keys(w.currentFile.voyages).length : 0;
 
   // Resizable sidebar (drag the divider). Width persists across sessions.

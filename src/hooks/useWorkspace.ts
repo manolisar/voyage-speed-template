@@ -291,16 +291,19 @@ export function useWorkspace(session: Session): WorkspaceApi {
   const editable = !!current && !current.locked && canEdit && editAuthorized;
 
   // Mutate the current voyage in the current file, then schedule write-back.
+  // Clone ONLY the edited voyage (not every voyage in the file) so a keystroke
+  // doesn't deep-copy the whole file; the new voyage object is also what lets
+  // computeVoyage + LegRow memoise on identity.
   const mutate = useCallback(
     (fn: (v: Voyage) => void) => {
       setFiles((prev) =>
         prev.map((f) => {
           if (f.name !== selectedFile) return f;
-          const voyages = JSON.parse(JSON.stringify(f.voyages)) as typeof f.voyages;
-          const v = voyages[selectedId];
-          if (!v) return f;
+          const target = f.voyages[selectedId];
+          if (!target) return f;
+          const v = structuredClone(target);
           fn(v);
-          return { ...f, voyages };
+          return { ...f, voyages: { ...f.voyages, [selectedId]: v } };
         }),
       );
       markDirty(selectedFile);
