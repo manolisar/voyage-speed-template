@@ -1,13 +1,10 @@
 // One leg row in the table. Reads raw values from the Leg and computed
 // display values from its LegView. Field/column set ported from the design.
-import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type CSSProperties, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { Leg, LegType } from '../types';
 import type { LegView, SpeedBand } from '../domain/calculations';
-
-// Columns 0..FROZEN-1 (Type … Speed) are frozen to the left when the table
-// scrolls horizontally; their left offsets are measured by LegsTable.
-const FROZEN = 7;
+import { FIELD_COL, FIELD_SPEC, FROZEN } from '../domain/fieldTypes';
 
 const TYPE_CHIP: Record<LegType, { label: string; bg: string; fg: string; bd: string; row: string; solid: string }> = {
   Port: { label: 'PORT', bg: '#EFF6FF', fg: '#2563EB', bd: '#BFDBFE', row: 'var(--color-surface)', solid: 'var(--color-surface)' },
@@ -49,18 +46,6 @@ const FIELD_LABEL: Partial<Record<keyof Leg, string>> = {
   remarks: 'Remarks',
   speed: 'Target speed in knots',
 };
-const NUMERIC_FIELDS = new Set<keyof Leg>(['dist', 'utc', 'speed', 'stbyArrDist', 'stbyDepDist']);
-
-// Table-column index of each text input, exposed as `data-col` so the grid
-// keyboard handler in LegsTable can move vertically within a column (Up/Down/
-// Enter) and horizontally across cells (Tab). Rows missing a given input (e.g.
-// Sea rows) are simply skipped on vertical moves.
-const FIELD_COL: Partial<Record<keyof Leg, number>> = {
-  date: 1, port: 2, dist: 3, speed: 6, eta: 7, arr: 8, dep: 9, faw: 10,
-  stbyArrDist: 11, stbyDepDist: 14, sunrise: 18, sunset: 19, utc: 21,
-  openLoop: 22, seaCond: 23, remarks: 24,
-};
-
 interface Props {
   leg: Leg;
   view: LegView;
@@ -80,7 +65,7 @@ interface Props {
   onFillCommit: (from: number, to: number) => void;
 }
 
-export function LegRow({
+function LegRowImpl({
   leg,
   view,
   index,
@@ -154,26 +139,31 @@ export function LegRow({
     onFillPreview(index, index);
   };
 
-  // Shared input renderer for the dense cells.
-  const inp = (
-    field: keyof Leg,
-    opts: { width: number; placeholder?: string; align?: 'left' | 'right' | 'center'; mono?: boolean; color?: string; weight?: number },
-  ) => (
-    <input
-      value={leg[field]}
-      onChange={set(field)}
-      disabled={readonly}
-      data-col={FIELD_COL[field]}
-      aria-label={`${FIELD_LABEL[field] ?? field}, leg ${index + 1}`}
-      inputMode={NUMERIC_FIELDS.has(field) ? 'decimal' : undefined}
-      spellCheck={false}
-      placeholder={opts.placeholder ?? '—'}
-      style={{ width: opts.width, color: opts.color ?? 'var(--color-ink)', fontWeight: opts.weight, textAlign: opts.align ?? 'left' }}
-      className={`rounded border border-transparent bg-transparent px-1 py-[3px] text-[0.72rem] outline-none focus:border-cyan focus:bg-surface hover:bg-rail ${
-        opts.mono ? 'font-mono' : ''
-      }`}
-    />
-  );
+  // Shared input renderer for the dense cells. Every visual attribute (width via
+  // the colgroup, alignment, mono, colour, weight, placeholder, inputMode,
+  // maxLength) comes from FIELD_SPEC, so a column is re-typed/re-sized from one
+  // place. The input fills its column (w-full) rather than carrying a fixed px
+  // width that would fight the table-fixed colgroup.
+  const inp = (field: keyof Leg) => {
+    const spec = FIELD_SPEC[field];
+    return (
+      <input
+        value={leg[field]}
+        onChange={set(field)}
+        disabled={readonly}
+        data-col={FIELD_COL[field]}
+        aria-label={`${FIELD_LABEL[field] ?? field}, leg ${index + 1}`}
+        inputMode={spec.inputMode}
+        maxLength={spec.maxLength}
+        spellCheck={false}
+        placeholder={spec.placeholder ?? '—'}
+        style={{ color: spec.color ?? 'var(--color-ink)', fontWeight: spec.weight, textAlign: spec.align }}
+        className={`w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-[3px] text-[0.72rem] outline-none focus:border-cyan focus:bg-surface hover:bg-rail ${
+          spec.mono ? 'font-mono' : ''
+        }`}
+      />
+    );
+  };
 
   const dateBg = fillActive ? 'color-mix(in srgb, var(--color-cyan) 16%, var(--color-surface))' : chip.solid;
 
@@ -207,7 +197,7 @@ export function LegRow({
       </td>
       {/* Date — with Excel-style fill handle */}
       <td className={`${tdCls} relative px-1`} style={frozen(1, dateBg)}>
-        {inp('date', { width: 96, placeholder: 'YYYY-MM-DD', mono: true })}
+        {inp('date')}
         {!readonly && (
           <span
             role="button"
@@ -220,10 +210,10 @@ export function LegRow({
         )}
       </td>
       {/* Location */}
-      <td className={`${tdCls} px-1`} style={frozen(2)}>{inp('port', { width: 210, weight: 600 })}</td>
+      <td className={`${tdCls} px-1`} style={frozen(2)}>{inp('port')}</td>
       {/* Dist */}
       <td className={`${tdCls} px-1 text-right`} style={frozen(3)}>
-        {view.isPort ? inp('dist', { width: 62, align: 'right', mono: true }) : dash}
+        {view.isPort ? inp('dist') : dash}
       </td>
       {/* Mode */}
       <td className={`${tdCls} px-1 text-center`} style={frozen(4)}>
@@ -254,19 +244,20 @@ export function LegRow({
           </span>
         )}
       </td>
-      {/* Time (computed) — extra right padding so the digits clear the Speed
-          cell, which (being sticky too) overlaps this cell's right edge. */}
-      <td className={`${tdCls} pl-1.5 pr-3 text-right`} style={frozen(5)}>
-        <div className="font-mono text-[0.74rem] font-bold" style={{ color: view.timeComputed ? 'var(--color-ink)' : 'var(--color-faint)' }}>
+      {/* Time (computed) — width is pinned by the colgroup; clip rather than let
+          a long "127:00" reflow the column (which is what used to stale the
+          frozen offsets and open the seam). */}
+      <td className={`${tdCls} overflow-hidden pl-1.5 pr-2 text-right`} style={frozen(5)}>
+        <div className="overflow-hidden font-mono text-[0.74rem] font-bold whitespace-nowrap" style={{ color: view.timeComputed ? 'var(--color-ink)' : 'var(--color-faint)' }}>
           {view.timeDisplay}
         </div>
       </td>
       {/* Speed */}
-      <td className={`${tdCls} px-1 text-right`} style={{ ...frozen(6), boxShadow: scrolled ? `${speedLeft}, ${FREEZE_EDGE}` : speedLeft }}>
+      <td className={`${tdCls} overflow-hidden px-1 text-right`} style={{ ...frozen(6), boxShadow: scrolled ? `${speedLeft}, ${FREEZE_EDGE}` : speedLeft }}>
         {view.speedComputed ? (
           view.speedDisplay ? (
             <span
-              className="inline-block font-mono text-[0.74rem] font-extrabold"
+              className="inline-block overflow-hidden font-mono text-[0.74rem] font-extrabold whitespace-nowrap"
               style={{ color: speedBand ? SPEED_VAR[speedBand] : 'var(--color-ink)' }}
             >
               {view.speedDisplay}
@@ -284,8 +275,7 @@ export function LegRow({
             inputMode="decimal"
             spellCheck={false}
             placeholder="kn"
-            style={{ width: 54 }}
-            className="rounded border border-cyan bg-[#ECFEFF] px-1 py-[3px] text-right font-mono text-[0.72rem] font-bold outline-none focus:bg-surface"
+            className="w-full min-w-0 rounded border border-cyan bg-[#ECFEFF] px-1 py-[3px] text-right font-mono text-[0.72rem] font-bold outline-none focus:bg-surface"
           />
         ) : null}
       </td>
@@ -296,16 +286,16 @@ export function LegRow({
         ) : view.etaComputed ? (
           <span className="font-mono text-[0.72rem] font-bold text-cyan-deep">{view.etaDisplay}</span>
         ) : (
-          inp('eta', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true })
+          inp('eta')
         )}
       </td>
       {/* Arr / Dep / FAW */}
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('arr', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true }) : dash}</td>
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('dep', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true }) : dash}</td>
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('faw', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true }) : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('arr') : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('dep') : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('faw') : dash}</td>
       {/* Arr St/By: distance · time · speed */}
       <td className={`${tdCls} px-1 text-center`}>
-        {view.isPort ? inp('stbyArrDist', { width: 46, align: 'center', mono: true }) : dash}
+        {view.isPort ? inp('stbyArrDist') : dash}
       </td>
       <td className={`${tdCls} px-1.5 text-center`}>
         <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyArrTime : '—'}</span>
@@ -319,7 +309,7 @@ export function LegRow({
       </td>
       {/* Dep St/By: distance · time · speed */}
       <td className={`${tdCls} px-1 text-center`}>
-        {view.isPort ? inp('stbyDepDist', { width: 46, align: 'center', mono: true }) : dash}
+        {view.isPort ? inp('stbyDepDist') : dash}
       </td>
       <td className={`${tdCls} px-1.5 text-center`}>
         <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyDepTime : '—'}</span>
@@ -336,8 +326,8 @@ export function LegRow({
         <span className="font-mono text-[0.7rem] text-pink">{view.portDisplay}</span>
       </td>
       {/* Sunrise / Sunset */}
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunrise', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true, color: 'var(--color-muted)' }) : dash}</td>
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunset', { width: 52, placeholder: 'hh:mm', align: 'center', mono: true, color: 'var(--color-muted)' }) : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunrise') : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunset') : dash}</td>
       {/* Daylight */}
       <td className={`${tdCls} px-1.5 text-center`}>
         <span className="font-mono text-[0.7rem]" style={{ color: view.hasDaylight ? '#D97706' : '#B0BAC6' }}>
@@ -345,10 +335,10 @@ export function LegRow({
         </span>
       </td>
       {/* UTC ± */}
-      <td className={`${tdCls} px-1 text-center`}>{inp('utc', { width: 44, placeholder: '±0', align: 'center', mono: true, color: '#0891b2', weight: 700 })}</td>
+      <td className={`${tdCls} px-1 text-center`}>{inp('utc')}</td>
       {/* Open Loop / Sea Cond */}
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('openLoop', { width: 58, placeholder: 'HH:mm', align: 'center', mono: true, color: '#0284C7' }) : dash}</td>
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('seaCond', { width: 58, placeholder: 'HH:mm', align: 'center', mono: true, color: '#6366F1' }) : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('openLoop') : dash}</td>
+      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('seaCond') : dash}</td>
       {/* Remarks */}
       <td className={`${tdCls} px-1`}>
         <RemarksCell value={leg.remarks} readonly={readonly} index={index} onChange={(v) => onField(index, 'remarks', v)} />
@@ -365,6 +355,45 @@ export function LegRow({
     </tr>
   );
 }
+
+// ── Memoisation ─────────────────────────────────────────────────────────────
+// Without this, a single keystroke re-renders every row (App recomputes all
+// legViews → new array → all rows re-render), keeping the layout in flux. With a
+// value-aware comparator only the edited row (and any genuinely-changed
+// downstream row whose Leg or LegView differs) repaints.
+const LEG_FIELDS: (keyof Leg)[] = [
+  'type', 'date', 'port', 'dist', 'mode', 'eta', 'arr', 'dep', 'faw',
+  'sunrise', 'sunset', 'utc', 'openLoop', 'seaCond', 'stbyArrDist', 'stbyDepDist', 'remarks', 'speed',
+];
+function legEqual(a: Leg, b: Leg): boolean {
+  if (a === b) return true;
+  for (const f of LEG_FIELDS) if (a[f] !== b[f]) return false;
+  return true;
+}
+// Display fields LegRow actually reads from its LegView. Kept in sync with the
+// JSX above — a missed field here would leave a computed cell stale.
+const VIEW_FIELDS: (keyof LegView)[] = [
+  'isPort', 'isSea', 'timeDisplay', 'timeComputed', 'speedComputed', 'speedInput',
+  'speedDisplay', 'speedBand', 'etaComputed', 'etaDisplay', 'stbyArrTime', 'stbyArrSpeed',
+  'stbyDepTime', 'stbyDepSpeed', 'portDisplay', 'daylightDisplay', 'hasDaylight',
+];
+function viewEqual(a: LegView, b: LegView): boolean {
+  if (a === b) return true;
+  for (const f of VIEW_FIELDS) if (a[f] !== b[f]) return false;
+  return true;
+}
+
+export const LegRow = memo(
+  LegRowImpl,
+  (a, b) =>
+    a.index === b.index &&
+    a.readonly === b.readonly &&
+    a.scrolled === b.scrolled &&
+    a.fillActive === b.fillActive &&
+    a.lefts === b.lefts &&
+    legEqual(a.leg, b.leg) &&
+    viewEqual(a.view, b.view),
+);
 
 // Remarks cell: a full-width single-line input plus an expandable panel that
 // reveals the whole note in a wrapping textarea (long remarks no longer clip).

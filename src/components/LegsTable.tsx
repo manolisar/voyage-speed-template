@@ -1,14 +1,14 @@
-// Legs section — header (legend + add buttons) and the 25-column table. The
+// Legs section — header (legend + add buttons) and the 26-column table. The
 // first FROZEN columns (Type … Speed) stick to the left on horizontal scroll;
-// their left offsets are measured from the rendered header so variable column
-// widths stay aligned.
-import { useLayoutEffect, useRef, useState } from 'react';
+// their left offsets are DETERMINISTIC (from the COL_W width table), not
+// measured — a <colgroup> + table-fixed layout pins every column width so a
+// computed cell can never reflow its column and leave the sticky offsets stale.
+import { useState } from 'react';
 import type { Leg, LegType, Voyage } from '../types';
 import type { LegView } from '../domain/calculations';
+import { COL_W, FROZEN, FROZEN_LEFTS, TABLE_MIN_W } from '../domain/fieldTypes';
 import { LegRow } from './LegRow';
 import { PlusIcon } from './Icons';
-
-const FROZEN = 7; // Type, Date, Location, Dist, Mode, Time, Speed
 
 const COLUMNS: [string, string][] = [
   ['Type', 'center'], ['Date', 'left'], ['Location', 'left'], ['Dist', 'right'], ['Mode', 'center'],
@@ -37,35 +37,10 @@ export function LegsTable(props: Props) {
   const { voyage, legViews, readonly, onAdd, onFillDates } = props;
   const legs = voyage?.legs ?? [];
 
-  // Measured left offset of each frozen header cell — fed back as `left` for
-  // the sticky frozen columns so they line up with their (variable) widths.
-  const headRowRef = useRef<HTMLTableRowElement>(null);
-  const [lefts, setLefts] = useState<number[]>([]);
-  useLayoutEffect(() => {
-    const row = headRowRef.current;
-    if (!row) return;
-    const measure = () => {
-      const cells = Array.from(row.children) as HTMLElement[];
-      const next: number[] = [];
-      // Normalise against the first cell so column 0 sticks at left:0 — offsetLeft
-      // is relative to the offsetParent, which isn't always the table's edge.
-      const base = cells[0]?.offsetLeft ?? 0;
-      for (let i = 0; i < FROZEN && i < cells.length; i++) next.push(Math.round(cells[i].offsetLeft - base));
-      // Returning `prev` unchanged bails React out — no re-render, no loop.
-      setLefts((prev) => (prev.length === next.length && prev.every((v, k) => v === next[k]) ? prev : next));
-    };
-    measure();
-    // Observe the table (not the row) so column-width changes from cell content
-    // are caught; the dep on legs.length covers add/remove. The bailout above
-    // keeps this from looping when offsets are unchanged.
-    const ro = new ResizeObserver(measure);
-    ro.observe(row.closest('table') ?? row);
-    window.addEventListener('resize', measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, [legs.length]);
+  // Frozen-column left offsets are a constant cumulative sum of the COL_W width
+  // table (computed once in fieldTypes). No measurement, no ResizeObserver — the
+  // colgroup below guarantees columns never reflow, so these can't go stale.
+  const lefts = FROZEN_LEFTS;
 
   // True once the table is scrolled off its left edge — gates the soft shadow
   // at the frozen-column boundary so it only shows while content sits under it
@@ -148,10 +123,21 @@ export function LegsTable(props: Props) {
         onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 0)}
       >
         {/* border-separate (not collapse): collapsed borders vanish on the
-            sticky header / frozen cells during scroll in Chromium. */}
-        <table onKeyDown={onGridKey} className="w-full min-w-[2280px] border-separate border-spacing-0 text-[0.72rem]">
+            sticky header / frozen cells during scroll in Chromium.
+            table-fixed + colgroup: column widths come from COL_W, not content,
+            so the frozen offsets above stay valid through every edit. */}
+        <table
+          onKeyDown={onGridKey}
+          className="table-fixed border-separate border-spacing-0 text-[0.72rem]"
+          style={{ minWidth: TABLE_MIN_W, width: TABLE_MIN_W }}
+        >
+          <colgroup>
+            {COL_W.map((w, i) => (
+              <col key={i} style={{ width: w }} />
+            ))}
+          </colgroup>
           <thead>
-            <tr ref={headRowRef}>
+            <tr>
               {COLUMNS.map(([label, align], i) => {
                 const isFrozen = i < FROZEN;
                 return (
