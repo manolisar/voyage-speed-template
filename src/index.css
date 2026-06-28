@@ -206,18 +206,6 @@ td:focus-within .vt-fill-handle,
   opacity: 1;
 }
 
-/* Compact density: trim the row padding so more legs fit without scrolling.
-   Comfortable (default) keeps the per-cell padding utilities as-is. */
-table[data-density='compact'] td,
-table[data-density='compact'] th {
-  padding-top: 1px;
-  padding-bottom: 1px;
-}
-table[data-density='compact'] td input {
-  padding-top: 1px;
-  padding-bottom: 1px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

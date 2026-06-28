@@ -14,7 +14,7 @@ import { PlusIcon } from './Icons';
 const COLUMNS: [string, string][] = [
   ['Type', 'center'], ['Date', 'left'], ['Location', 'left'], ['Dist', 'right'], ['Mode', 'center'],
   ['Time', 'right'], ['Speed', 'right'], ['ETA', 'center'], ['Arr', 'center'], ['Dep', 'center'], ['FAW', 'center'],
-  ['Arr SB nm', 'center'], ['Arr SB', 'center'], ['Arr kn', 'center'], ['Dep SB nm', 'center'], ['Dep SB', 'center'], ['Dep kn', 'center'],
+  ['S/B Arr Dist', 'center'], ['S/B Arr Time', 'center'], ['S/B Arr Spd', 'center'], ['S/B Dep Dist', 'center'], ['S/B Dep Time', 'center'], ['S/B Dep Spd', 'center'],
   ['Port hrs', 'center'], ['Sunrise', 'center'], ['Sunset', 'center'],
   ['Daylight', 'center'], ['UTC ±', 'center'], ['Open Loop', 'center'], ['Sea Cond', 'center'], ['Remarks', 'left'], ['', 'center'],
 ];
@@ -79,7 +79,6 @@ export function LegsTable(props: Props) {
   const lefts = FROZEN_LEFTS;
 
   // ── View prefs (persisted) ──────────────────────────────────────────────
-  const [density, setDensity] = usePref<'compact' | 'comfortable'>('vst_density', 'comfortable');
   const [cols, setCols] = usePref<ColPrefs>('vst_cols', { standby: true, sun: true, loop: true });
   const [colsOpen, setColsOpen] = useState(false);
 
@@ -208,21 +207,6 @@ export function LegsTable(props: Props) {
           </span>
         </div>
         <div className="flex items-center gap-1.5">
-          {/* Density toggle */}
-          <div className="inline-flex overflow-hidden rounded-lg border border-line" role="group" aria-label="Row density">
-            {(['comfortable', 'compact'] as const).map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDensity(d)}
-                aria-pressed={density === d}
-                className="px-2.5 py-1.5 text-[0.66rem] font-semibold capitalize"
-                style={density === d ? { background: 'var(--color-cyan)', color: '#fff' } : { background: 'var(--color-surface)', color: 'var(--color-muted)' }}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
           {/* Columns popover */}
           <div className="relative">
             <button
@@ -270,7 +254,6 @@ export function LegsTable(props: Props) {
         <table
           onKeyDown={onGridKey}
           onPaste={onPaste}
-          data-density={density}
           className="table-fixed border-separate border-spacing-0 text-[0.72rem]"
           style={{ minWidth: visibleWidth, width: visibleWidth }}
         >
@@ -283,13 +266,16 @@ export function LegsTable(props: Props) {
                 if (hiddenCols.has(i)) return null;
                 const isFrozen = i < FROZEN;
                 const isActions = i === COLUMNS.length - 1;
+                // The St/By headers (11–16) are long ("S/B Arr Dist") — let them
+                // wrap to a second line instead of forcing the column wider.
+                const wrap = i >= 11 && i <= 16;
                 return (
                   <th
                     key={i}
                     scope="col"
-                    className={`sticky top-0 whitespace-nowrap border-b border-r border-line bg-rail px-2 py-2 text-[0.5rem] font-bold uppercase tracking-[1.1px] text-faint ${
-                      isFrozen || isActions ? 'z-30' : 'z-20'
-                    }`}
+                    className={`sticky top-0 border-b border-r border-line bg-rail px-2 py-2 align-bottom text-[0.5rem] font-bold uppercase tracking-[1.1px] text-faint ${
+                      wrap ? 'leading-tight' : 'whitespace-nowrap'
+                    } ${isFrozen || isActions ? 'z-30' : 'z-20'}`}
                     style={{
                       textAlign: align as 'left' | 'right' | 'center',
                       // Match the body's left-edge separators (see LegRow) so the

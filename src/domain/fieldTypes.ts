@@ -86,8 +86,8 @@ export const FIELD_SPEC: Record<string, FieldSpec> = {
   faw: { type: 'clock', width: 50, align: 'center', mono: true, inputMode: 'numeric', maxLength: 5, placeholder: 'hh:mm', normalize: normClock },
   sunrise: { type: 'clock', width: 52, align: 'center', mono: true, inputMode: 'numeric', maxLength: 5, placeholder: 'hh:mm', color: 'var(--color-muted)', normalize: normClock },
   sunset: { type: 'clock', width: 52, align: 'center', mono: true, inputMode: 'numeric', maxLength: 5, placeholder: 'hh:mm', color: 'var(--color-muted)', normalize: normClock },
-  stbyArrDist: { type: 'distance', width: 48, align: 'center', mono: true, inputMode: 'decimal', normalize: normNum },
-  stbyDepDist: { type: 'distance', width: 48, align: 'center', mono: true, inputMode: 'decimal', normalize: normNum },
+  stbyArrDist: { type: 'distance', width: 58, align: 'center', mono: true, inputMode: 'decimal', normalize: normNum },
+  stbyDepDist: { type: 'distance', width: 58, align: 'center', mono: true, inputMode: 'decimal', normalize: normNum },
   utc: { type: 'offset', width: 44, align: 'center', mono: true, inputMode: 'numeric', placeholder: '±0', color: '#0891b2', weight: 700, normalize: normOffset },
   openLoop: { type: 'duration', width: 56, align: 'center', mono: true, inputMode: 'numeric', placeholder: 'HH:mm', color: '#0284C7', normalize: normDuration },
   seaCond: { type: 'duration', width: 56, align: 'center', mono: true, inputMode: 'numeric', placeholder: 'HH:mm', color: '#6366F1', normalize: normDuration },
@@ -111,12 +111,12 @@ export const COL_W: number[] = [
   FIELD_SPEC.arr.width, //  8 Arr
   FIELD_SPEC.dep.width, //  9 Dep
   FIELD_SPEC.faw.width, // 10 FAW
-  FIELD_SPEC.stbyArrDist.width, // 11 Arr SB nm
-  52, // 12 Arr SB  (computed)
-  48, // 13 Arr kn  (computed)
-  FIELD_SPEC.stbyDepDist.width, // 14 Dep SB nm
-  52, // 15 Dep SB  (computed)
-  48, // 16 Dep kn  (computed)
+  FIELD_SPEC.stbyArrDist.width, // 11 S/B Arr Dist
+  58, // 12 S/B Arr Time (computed)
+  58, // 13 S/B Arr Spd  (computed)
+  FIELD_SPEC.stbyDepDist.width, // 14 S/B Dep Dist
+  58, // 15 S/B Dep Time (computed)
+  58, // 16 S/B Dep Spd  (computed)
   54, // 17 Port hrs (computed)
   FIELD_SPEC.sunrise.width, // 18 Sunrise
   FIELD_SPEC.sunset.width, // 19 Sunset
