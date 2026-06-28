@@ -193,14 +193,29 @@ button {
   background: transparent;
 }
 
-/* Excel-style date fill handle: small square at the cell's corner. */
+/* Excel-style fill handle: small square at a cell's corner. Revealed on cell
+   hover or when the cell's input is focused (the handle lives in a span wrapper
+   inside the td, so this is a descendant match, not a direct child). */
 .vt-fill-handle {
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-td:hover > .vt-fill-handle,
+td:hover .vt-fill-handle,
+td:focus-within .vt-fill-handle,
 .vt-fill-handle:active {
   opacity: 1;
+}
+
+/* Compact density: trim the row padding so more legs fit without scrolling.
+   Comfortable (default) keeps the per-cell padding utilities as-is. */
+table[data-density='compact'] td,
+table[data-density='compact'] th {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+table[data-density='compact'] td input {
+  padding-top: 1px;
+  padding-bottom: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {

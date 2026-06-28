@@ -38,6 +38,23 @@ function Workspace({
   const { legViews, summary } = useMemo(() => computeVoyage(current), [current]);
   const total = w.currentFile ? Object.keys(w.currentFile.voyages).length : 0;
 
+  // Undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z) on the current voyage. Ignored
+  // while typing isn't the point — the per-voyage history is keystroke-grained —
+  // so we let the browser's native field undo win only inside a focused input.
+  const { undo, redo, editable } = w;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!editable || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return; // let native field undo handle it
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editable, undo, redo]);
+
   // Resizable sidebar (drag the divider). Width persists across sessions.
   const [sidebarW, setSidebarW] = useState<number>(() => {
     const v = Number(localStorage.getItem('vst_sidebar_w'));
@@ -154,7 +171,7 @@ function Workspace({
                 onInsert={w.insertLeg}
                 onDelete={w.deleteLeg}
                 onAdd={w.addLeg}
-                onFillDates={w.fillDownDates}
+                onFill={w.fillDown}
               />
               <section className="grid grid-cols-[1.4fr_1fr] gap-4">
                 <VersionHistory versions={w.current.versions} />

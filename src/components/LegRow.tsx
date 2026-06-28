@@ -4,7 +4,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, t
 import { createPortal } from 'react-dom';
 import type { Leg, LegType } from '../types';
 import type { LegView, SpeedBand } from '../domain/calculations';
-import { FIELD_COL, FIELD_SPEC, FROZEN } from '../domain/fieldTypes';
+import { FIELD_COL, FIELD_SPEC, FROZEN, isInvalid } from '../domain/fieldTypes';
 
 const TYPE_CHIP: Record<LegType, { label: string; bg: string; fg: string; bd: string; row: string; solid: string }> = {
   Port: { label: 'PORT', bg: '#EFF6FF', fg: '#2563EB', bd: '#BFDBFE', row: 'var(--color-surface)', solid: 'var(--color-surface)' },
@@ -51,9 +51,14 @@ interface Props {
   view: LegView;
   index: number;
   readonly: boolean;
-  lefts: number[]; // measured left offsets for the frozen columns
+  lefts: number[]; // constant left offsets for the frozen columns
   scrolled: boolean; // table scrolled off its left edge — show the freeze-edge shadow
-  fillActive: boolean; // this row is within an in-progress date fill range
+  scrolledRight: boolean; // table not at its right edge — show the sticky-actions shadow
+  fillActive: boolean; // this row is within an in-progress fill range
+  fillCol: number; // table-column being filled (-1 when not dragging)
+  showStandby: boolean; // St/By column group visible
+  showSun: boolean; // Sunrise/Sunset/Daylight group visible
+  showLoop: boolean; // Open Loop / Sea Cond group visible
   onField: (i: number, field: keyof Leg, val: string) => void;
   onMode: (i: number, mode: 'speed' | 'time') => void;
   onToggleType: (i: number) => void;
@@ -61,8 +66,8 @@ interface Props {
   onDown: (i: number) => void;
   onInsert: (i: number) => void;
   onDelete: (i: number) => void;
-  onFillPreview: (from: number, to: number) => void;
-  onFillCommit: (from: number, to: number) => void;
+  onFillPreview: (from: number, to: number, col: number) => void;
+  onFillCommit: (from: number, to: number, field: keyof Leg) => void;
 }
 
 function LegRowImpl({
@@ -72,7 +77,12 @@ function LegRowImpl({
   readonly,
   lefts,
   scrolled,
+  scrolledRight,
   fillActive,
+  fillCol,
+  showStandby,
+  showSun,
+  showLoop,
   onField,
   onMode,
   onToggleType,
@@ -85,6 +95,10 @@ function LegRowImpl({
 }: Props) {
   const chip = TYPE_CHIP[leg.type];
   const set = (field: keyof Leg) => (e: ChangeEvent<HTMLInputElement>) => onField(index, field, e.target.value);
+  // Value captured when an input gains focus — used to revert on Escape and to
+  // skip the blur-normalise when an Escape revert is in flight.
+  const focusValRef = useRef('');
+  const revertingRef = useRef(false);
 
   // Sticky style for the first FROZEN columns. `bg` keeps frozen cells opaque
   // so scrolled columns don't bleed through their transparent row tint.
@@ -107,13 +121,15 @@ function LegRowImpl({
   // The freeze-edge shadow is driven inline by `scrolled` (see the Speed cell)
   // so the boundary only shadows while content sits under it.
 
-  // Excel-style fill handle: drag down from a date cell to write a +1-day
-  // series into the rows below. Tracks the pointer over rows by their
-  // data-leg-index, previews live, and commits on release.
-  const startFill = (e: PointerEvent) => {
+  // Excel-style fill handle: drag down from a cell to copy its value into the
+  // rows below — a +1-day series for dates, the same value verbatim for every
+  // other field. Tracks the pointer over rows by their data-leg-index, previews
+  // live (in the dragged field's column), and commits on release.
+  const startFill = (e: PointerEvent, field: keyof Leg) => {
     if (readonly) return;
     e.preventDefault();
     e.stopPropagation();
+    const col = FIELD_COL[field] ?? -1;
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'crosshair';
     let target = index;
@@ -124,48 +140,99 @@ function LegRowImpl({
         const n = Number(tr.dataset.legIndex);
         if (!Number.isNaN(n)) target = Math.max(index, n);
       }
-      onFillPreview(index, target);
+      onFillPreview(index, target, col);
     };
     const up = () => {
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
-      onFillPreview(-1, -1);
-      if (target > index) onFillCommit(index, target);
+      onFillPreview(-1, -1, -1);
+      if (target > index) onFillCommit(index, target, field);
     };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
-    onFillPreview(index, index);
+    onFillPreview(index, index, col);
   };
 
   // Shared input renderer for the dense cells. Every visual attribute (width via
   // the colgroup, alignment, mono, colour, weight, placeholder, inputMode,
   // maxLength) comes from FIELD_SPEC, so a column is re-typed/re-sized from one
   // place. The input fills its column (w-full) rather than carrying a fixed px
-  // width that would fight the table-fixed colgroup.
+  // width that would fight the table-fixed colgroup. Also wires the editing-UX:
+  // select-all on focus, blur-normalise, Escape-revert, invalid affordance, and
+  // a copy-down fill handle.
   const inp = (field: keyof Leg) => {
     const spec = FIELD_SPEC[field];
+    const col = FIELD_COL[field] ?? -1;
+    const inFill = fillActive && fillCol === col; // this cell is in the drag range
+    const invalid = !readonly && isInvalid(field, leg[field]);
+    const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+      focusValRef.current = e.currentTarget.value;
+      e.currentTarget.select();
+    };
+    const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+      if (revertingRef.current) {
+        revertingRef.current = false;
+        return;
+      }
+      const norm = spec.normalize?.(e.currentTarget.value);
+      if (norm != null && norm !== leg[field]) onField(index, field, norm);
+    };
+    const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        revertingRef.current = true; // suppress the blur-normalise about to fire
+        if (focusValRef.current !== leg[field]) onField(index, field, focusValRef.current);
+        e.currentTarget.blur();
+      }
+    };
     return (
-      <input
-        value={leg[field]}
-        onChange={set(field)}
-        disabled={readonly}
-        data-col={FIELD_COL[field]}
-        aria-label={`${FIELD_LABEL[field] ?? field}, leg ${index + 1}`}
-        inputMode={spec.inputMode}
-        maxLength={spec.maxLength}
-        spellCheck={false}
-        placeholder={spec.placeholder ?? '—'}
-        style={{ color: spec.color ?? 'var(--color-ink)', fontWeight: spec.weight, textAlign: spec.align }}
-        className={`w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-[3px] text-[0.72rem] outline-none focus:border-cyan focus:bg-surface hover:bg-rail ${
-          spec.mono ? 'font-mono' : ''
-        }`}
-      />
+      <span className="relative block w-full">
+        <input
+          value={leg[field]}
+          onChange={set(field)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onKeyDown={onKeyDown}
+          disabled={readonly}
+          data-col={col}
+          aria-label={`${FIELD_LABEL[field] ?? field}, leg ${index + 1}`}
+          aria-invalid={invalid || undefined}
+          inputMode={spec.inputMode}
+          maxLength={spec.maxLength}
+          spellCheck={false}
+          placeholder={spec.placeholder ?? '—'}
+          style={{
+            color: spec.color ?? 'var(--color-ink)',
+            fontWeight: spec.weight,
+            textAlign: spec.align,
+            // Inline bg only when in a fill range (inline beats the hover/focus
+            // utility classes, which we want active otherwise). Invalid draws a
+            // 2px red underline as an inset shadow — no layout shift.
+            ...(inFill ? { background: 'color-mix(in srgb, var(--color-cyan) 16%, var(--color-surface))' } : null),
+            ...(invalid ? { boxShadow: 'inset 0 -2px 0 0 var(--color-spd-hi-fg)' } : null),
+          }}
+          className={`w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-[3px] text-[0.72rem] outline-none focus:border-cyan focus:bg-surface hover:bg-rail ${
+            spec.mono ? 'font-mono' : ''
+          }`}
+        />
+        {!readonly && (
+          <span
+            role="button"
+            tabIndex={-1}
+            aria-label={`Fill ${FIELD_LABEL[field] ?? field} down from leg ${index + 1}`}
+            title="Drag down to fill the cells below"
+            onPointerDown={(e) => startFill(e, field)}
+            className="vt-fill-handle absolute bottom-[2px] right-[2px] h-[7px] w-[7px] cursor-crosshair rounded-[2px] border border-surface bg-cyan shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
+          />
+        )}
+      </span>
     );
   };
 
-  const dateBg = fillActive ? 'color-mix(in srgb, var(--color-cyan) 16%, var(--color-surface))' : chip.solid;
+  const dateBg = fillActive && fillCol === FIELD_COL.date ? 'color-mix(in srgb, var(--color-cyan) 16%, var(--color-surface))' : chip.solid;
 
   // Speed cell's left edge: a 3px coloured band when out-of-band (calmer than an
   // underline), else the same 1px separator the other frozen cells use. Drawn as
@@ -195,19 +262,9 @@ function LegRowImpl({
           {chip.label}
         </button>
       </td>
-      {/* Date — with Excel-style fill handle */}
-      <td className={`${tdCls} relative px-1`} style={frozen(1, dateBg)}>
+      {/* Date — fill handle (drag down for a +1-day series) lives in inp(). */}
+      <td className={`${tdCls} px-1`} style={frozen(1, dateBg)}>
         {inp('date')}
-        {!readonly && (
-          <span
-            role="button"
-            tabIndex={-1}
-            aria-label={`Fill dates below from leg ${index + 1}`}
-            title="Drag down to fill the dates below"
-            onPointerDown={startFill}
-            className="vt-fill-handle absolute bottom-[3px] right-[4px] h-[8px] w-[8px] cursor-crosshair rounded-[2px] border border-surface bg-cyan shadow-[0_0_0_1px_rgba(0,0,0,0.08)]"
-          />
-        )}
       </td>
       {/* Location */}
       <td className={`${tdCls} px-1`} style={frozen(2)}>{inp('port')}</td>
@@ -293,58 +350,79 @@ function LegRowImpl({
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('arr') : dash}</td>
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('dep') : dash}</td>
       <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('faw') : dash}</td>
-      {/* Arr St/By: distance · time · speed */}
-      <td className={`${tdCls} px-1 text-center`}>
-        {view.isPort ? inp('stbyArrDist') : dash}
-      </td>
-      <td className={`${tdCls} px-1.5 text-center`}>
-        <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyArrTime : '—'}</span>
-      </td>
-      <td className={`${tdCls} px-1.5 text-center`}>
-        {view.stbyArrSpeed ? (
-          <span className="font-mono text-[0.7rem] font-bold text-cyan-deep">{view.stbyArrSpeed}</span>
-        ) : (
-          dash
-        )}
-      </td>
-      {/* Dep St/By: distance · time · speed */}
-      <td className={`${tdCls} px-1 text-center`}>
-        {view.isPort ? inp('stbyDepDist') : dash}
-      </td>
-      <td className={`${tdCls} px-1.5 text-center`}>
-        <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyDepTime : '—'}</span>
-      </td>
-      <td className={`${tdCls} px-1.5 text-center`}>
-        {view.stbyDepSpeed ? (
-          <span className="font-mono text-[0.7rem] font-bold text-cyan-deep">{view.stbyDepSpeed}</span>
-        ) : (
-          dash
-        )}
-      </td>
+      {/* St/By group (cols 11–16): Arr distance·time·speed, Dep distance·time·speed */}
+      {showStandby && (
+        <>
+          <td className={`${tdCls} px-1 text-center`}>
+            {view.isPort ? inp('stbyArrDist') : dash}
+          </td>
+          <td className={`${tdCls} px-1.5 text-center`}>
+            <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyArrTime : '—'}</span>
+          </td>
+          <td className={`${tdCls} px-1.5 text-center`}>
+            {view.stbyArrSpeed ? (
+              <span className="font-mono text-[0.7rem] font-bold text-cyan-deep">{view.stbyArrSpeed}</span>
+            ) : (
+              dash
+            )}
+          </td>
+          <td className={`${tdCls} px-1 text-center`}>
+            {view.isPort ? inp('stbyDepDist') : dash}
+          </td>
+          <td className={`${tdCls} px-1.5 text-center`}>
+            <span className="font-mono text-[0.7rem] text-amber">{view.isPort ? view.stbyDepTime : '—'}</span>
+          </td>
+          <td className={`${tdCls} px-1.5 text-center`}>
+            {view.stbyDepSpeed ? (
+              <span className="font-mono text-[0.7rem] font-bold text-cyan-deep">{view.stbyDepSpeed}</span>
+            ) : (
+              dash
+            )}
+          </td>
+        </>
+      )}
       {/* Port hrs */}
       <td className={`${tdCls} px-1.5 text-center`}>
         <span className="font-mono text-[0.7rem] text-pink">{view.portDisplay}</span>
       </td>
-      {/* Sunrise / Sunset */}
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunrise') : dash}</td>
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunset') : dash}</td>
-      {/* Daylight */}
-      <td className={`${tdCls} px-1.5 text-center`}>
-        <span className="font-mono text-[0.7rem]" style={{ color: view.hasDaylight ? '#D97706' : '#B0BAC6' }}>
-          {view.daylightDisplay}
-        </span>
-      </td>
+      {/* Sun group (cols 18–20): Sunrise / Sunset / Daylight */}
+      {showSun && (
+        <>
+          <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunrise') : dash}</td>
+          <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('sunset') : dash}</td>
+          <td className={`${tdCls} px-1.5 text-center`}>
+            <span className="font-mono text-[0.7rem]" style={{ color: view.hasDaylight ? '#D97706' : '#B0BAC6' }}>
+              {view.daylightDisplay}
+            </span>
+          </td>
+        </>
+      )}
       {/* UTC ± */}
       <td className={`${tdCls} px-1 text-center`}>{inp('utc')}</td>
-      {/* Open Loop / Sea Cond */}
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('openLoop') : dash}</td>
-      <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('seaCond') : dash}</td>
+      {/* Loop group (cols 22–23): Open Loop / Sea Cond */}
+      {showLoop && (
+        <>
+          <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('openLoop') : dash}</td>
+          <td className={`${tdCls} px-1 text-center`}>{view.isPort ? inp('seaCond') : dash}</td>
+        </>
+      )}
       {/* Remarks */}
       <td className={`${tdCls} px-1`}>
         <RemarksCell value={leg.remarks} readonly={readonly} index={index} onChange={(v) => onField(index, 'remarks', v)} />
       </td>
-      {/* Actions */}
-      <td className="whitespace-nowrap border-b border-line px-1.5 py-[3px] text-center">
+      {/* Actions — sticky to the right edge so add/insert/delete stay reachable
+          when the table is scrolled. Opaque bg + left separator/shadow mirror
+          the frozen-left block. */}
+      <td
+        className="whitespace-nowrap border-b border-line px-1.5 py-[3px] text-center"
+        style={{
+          position: 'sticky',
+          right: 0,
+          zIndex: 10,
+          background: chip.solid,
+          boxShadow: scrolledRight ? 'inset 1px 0 0 0 var(--color-line), -6px 0 8px -6px rgba(15, 23, 42, 0.22)' : 'inset 1px 0 0 0 var(--color-line)',
+        }}
+      >
         <span className="inline-flex gap-0.5">
           <ActionBtn label={`Move leg ${index + 1} up`} hoverClass="hover:text-cyan-deep" disabled={readonly} onClick={() => onUp(index)}>↑</ActionBtn>
           <ActionBtn label={`Move leg ${index + 1} down`} hoverClass="hover:text-cyan-deep" disabled={readonly} onClick={() => onDown(index)}>↓</ActionBtn>
@@ -389,7 +467,12 @@ export const LegRow = memo(
     a.index === b.index &&
     a.readonly === b.readonly &&
     a.scrolled === b.scrolled &&
+    a.scrolledRight === b.scrolledRight &&
     a.fillActive === b.fillActive &&
+    a.fillCol === b.fillCol &&
+    a.showStandby === b.showStandby &&
+    a.showSun === b.showSun &&
+    a.showLoop === b.showLoop &&
     a.lefts === b.lefts &&
     legEqual(a.leg, b.leg) &&
     viewEqual(a.view, b.view),

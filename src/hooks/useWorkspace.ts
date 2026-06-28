@@ -101,7 +101,9 @@ export interface WorkspaceApi {
   setNumber: (number: string) => void;
 
   updateLeg: (i: number, field: keyof Leg, val: string) => void;
-  fillDownDates: (fromIndex: number, toIndex: number) => void;
+  fillDown: (fromIndex: number, toIndex: number, field: keyof Leg) => void;
+  undo: () => void;
+  redo: () => void;
   setMode: (i: number, mode: 'speed' | 'time') => void;
   toggleType: (i: number) => void;
   addLeg: (type: LegType) => void;
@@ -155,6 +157,9 @@ export function useWorkspace(session: Session): WorkspaceApi {
   const flushTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const clipboardRef = useRef<{ sourceFile: string; id: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Per-voyage undo/redo history. Keyed by file::voyage so switching voyages
+  // keeps each one's stack. Snapshots are full-voyage clones, capped at 50.
+  const historyRef = useRef<Map<string, { past: Voyage[]; future: Voyage[] }>>(new Map());
 
   useEffect(() => {
     filesRef.current = files;
@@ -290,26 +295,81 @@ export function useWorkspace(session: Session): WorkspaceApi {
   const shipCode = currentFile?.shipId ?? '';
   const editable = !!current && !current.locked && canEdit && editAuthorized;
 
+  const HISTORY_CAP = 50;
+  const histKey = useCallback(() => `${selectedFile}::${selectedId}`, [selectedFile, selectedId]);
+  const getHist = useCallback(() => {
+    const k = histKey();
+    let h = historyRef.current.get(k);
+    if (!h) {
+      h = { past: [], future: [] };
+      historyRef.current.set(k, h);
+    }
+    return h;
+  }, [histKey]);
+
+  // Replace the current voyage object outright (used by undo/redo) without
+  // touching history. Schedules the debounced write-back.
+  const applyVoyage = useCallback(
+    (next: Voyage) => {
+      setFiles((prev) =>
+        prev.map((f) => (f.name === selectedFile && f.voyages[selectedId] ? { ...f, voyages: { ...f.voyages, [selectedId]: next } } : f)),
+      );
+      markDirty(selectedFile);
+    },
+    [selectedFile, selectedId, markDirty],
+  );
+
   // Mutate the current voyage in the current file, then schedule write-back.
   // Clone ONLY the edited voyage (not every voyage in the file) so a keystroke
   // doesn't deep-copy the whole file; the new voyage object is also what lets
-  // computeVoyage + LegRow memoise on identity.
+  // computeVoyage + LegRow memoise on identity. Before applying, snapshot the
+  // pre-edit voyage onto the undo stack (deduped so a synchronous burst — e.g. a
+  // multi-cell paste — collapses to one undo step rather than one per cell).
   const mutate = useCallback(
     (fn: (v: Voyage) => void) => {
+      const target = filesRef.current.find((f) => f.name === selectedFile)?.voyages[selectedId];
+      if (target) {
+        const h = getHist();
+        const snap = structuredClone(target);
+        const last = h.past[h.past.length - 1];
+        if (!last || JSON.stringify(last) !== JSON.stringify(snap)) {
+          h.past.push(snap);
+          if (h.past.length > HISTORY_CAP) h.past.shift();
+          h.future = [];
+        }
+      }
       setFiles((prev) =>
         prev.map((f) => {
           if (f.name !== selectedFile) return f;
-          const target = f.voyages[selectedId];
-          if (!target) return f;
-          const v = structuredClone(target);
+          const t = f.voyages[selectedId];
+          if (!t) return f;
+          const v = structuredClone(t);
           fn(v);
           return { ...f, voyages: { ...f.voyages, [selectedId]: v } };
         }),
       );
       markDirty(selectedFile);
     },
-    [selectedFile, selectedId, markDirty],
+    [selectedFile, selectedId, markDirty, getHist],
   );
+
+  const undo = useCallback(() => {
+    const h = historyRef.current.get(histKey());
+    const target = filesRef.current.find((f) => f.name === selectedFile)?.voyages[selectedId];
+    if (!h || !h.past.length || !target) return;
+    h.future.push(structuredClone(target));
+    applyVoyage(h.past.pop() as Voyage);
+    flash('Undo');
+  }, [histKey, selectedFile, selectedId, applyVoyage, flash]);
+
+  const redo = useCallback(() => {
+    const h = historyRef.current.get(histKey());
+    const target = filesRef.current.find((f) => f.name === selectedFile)?.voyages[selectedId];
+    if (!h || !h.future.length || !target) return;
+    h.past.push(structuredClone(target));
+    applyVoyage(h.future.pop() as Voyage);
+    flash('Redo');
+  }, [histKey, selectedFile, selectedId, applyVoyage, flash]);
 
   const guessUtc = useCallback((): string => {
     const v = currentFile?.voyages[selectedId];
@@ -355,24 +415,32 @@ export function useWorkspace(session: Session): WorkspaceApi {
     },
     [editable, mutate],
   );
-  // Excel-style fill handle: take the date in row `fromIndex` and write a +1-day
-  // series into every row below it through `toIndex` (inclusive). No-op if the
-  // source date is blank/malformed.
-  const fillDownDates = useCallback(
-    (fromIndex: number, toIndex: number) => {
-      if (!editable) return;
-      const base = dayNum(
-        currentFile?.voyages[selectedId]?.legs[fromIndex]?.date ?? '',
-      );
-      if (base == null || toIndex <= fromIndex) return;
-      mutate((v) => {
-        for (let i = fromIndex + 1; i <= toIndex; i++) {
-          if (!v.legs[i]) break;
-          v.legs[i].date = new Date((base + (i - fromIndex)) * 86400000)
-            .toISOString()
-            .slice(0, 10);
-        }
-      });
+  // Excel-style fill handle: copy the value in row `fromIndex` down through
+  // `toIndex` (inclusive). Dates write a +1-day series; every other field copies
+  // verbatim. No-op if the source value is blank/malformed (date).
+  const fillDown = useCallback(
+    (fromIndex: number, toIndex: number, field: keyof Leg) => {
+      if (!editable || toIndex <= fromIndex) return;
+      const src = currentFile?.voyages[selectedId]?.legs[fromIndex];
+      if (!src) return;
+      if (field === 'date') {
+        const base = dayNum(src.date);
+        if (base == null) return;
+        mutate((v) => {
+          for (let i = fromIndex + 1; i <= toIndex; i++) {
+            if (!v.legs[i]) break;
+            v.legs[i].date = new Date((base + (i - fromIndex)) * 86400000).toISOString().slice(0, 10);
+          }
+        });
+      } else {
+        const val = src[field];
+        mutate((v) => {
+          for (let i = fromIndex + 1; i <= toIndex; i++) {
+            if (!v.legs[i]) break;
+            (v.legs[i][field] as string) = val;
+          }
+        });
+      }
     },
     [editable, currentFile, selectedId, mutate],
   );
@@ -783,7 +851,9 @@ export function useWorkspace(session: Session): WorkspaceApi {
     setTitle,
     setNumber,
     updateLeg,
-    fillDownDates,
+    fillDown,
+    undo,
+    redo,
     setMode,
     toggleType,
     addLeg,

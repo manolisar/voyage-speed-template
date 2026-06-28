@@ -10,3 +10,7 @@ coverage
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# local QA / browser-tool artifacts
+.playwright-cli
+output
